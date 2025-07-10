@@ -104,8 +104,83 @@ def consolidate_chat_completions(
     if not completions:
         raise ValueError("Cannot consolidate empty list of completions")
 
+    # Check if we have a single completion with multiple choices (from n parameter)
+    if len(completions) == 1 and len(completions[0].choices) > 1:
+        # This is from OpenAI's n parameter - consolidate the choices
+        completion = completions[0]
+        
+        # Use default settings if not provided
+        if consensus_settings is None:
+            consensus_settings = ConsensusSettings()
+
+        # Use dummy embeddings if not provided
+        if sync_get_openai_embeddings_from_text is None:
+            sync_get_openai_embeddings_from_text = dummy_get_openai_embeddings_from_text
+
+        # Extract all choice contents for consensus
+        all_contents = []
+        for choice in completion.choices:
+            if choice.message.content:
+                all_contents.append(choice.message.content)
+            else:
+                all_contents.append(None)
+
+        # Get consensus content
+        consensus_content, confidence = consensus_values(all_contents, consensus_settings, sync_get_openai_embeddings_from_text, is_last_chunk=True)
+
+        # Initialize defaults in case consensus_values doesn't return expected values
+        if consensus_content is None:
+            consensus_content = ""
+        if confidence is None:
+            confidence = 0.0
+
+        # Create consolidated message
+        consolidated_message = ChatCompletionMessage(
+            role="assistant",
+            content=consensus_content if consensus_content is not None else "",
+            function_call=completion.choices[0].message.function_call if completion.choices else None,
+            tool_calls=completion.choices[0].message.tool_calls if completion.choices else None,
+            refusal=completion.choices[0].message.refusal if completion.choices else None,
+        )
+
+        # Create consolidated choice (consensus result)
+        consolidated_choice = Choice(
+            finish_reason=completion.choices[0].finish_reason if completion.choices else "stop",
+            index=0,
+            message=consolidated_message,
+            logprobs=completion.choices[0].logprobs if completion.choices else None,
+        )
+
+        # Keep original individual choices with updated indices
+        individual_choices = []
+        for i, choice in enumerate(completion.choices):
+            individual_choice = Choice(
+                finish_reason=choice.finish_reason,
+                index=i + 1,
+                message=choice.message,
+                logprobs=choice.logprobs
+            )
+            individual_choices.append(individual_choice)
+
+        # Combine consensus choice with individual choices
+        all_choices = [consolidated_choice] + individual_choices
+
+        # Create likelihood information
+        likelihoods = {"content": confidence} if isinstance(confidence, (int, float)) else None
+
+        return KLLMsChatCompletion(
+            id=completion.id,
+            choices=all_choices,
+            created=completion.created,
+            model=completion.model,
+            object=completion.object,
+            usage=completion.usage,
+            system_fingerprint=completion.system_fingerprint,
+            likelihoods=likelihoods,
+        )
+    
     if len(completions) == 1:
-        # Single completion - just wrap it
+        # Single completion with single choice - just wrap it
         completion = completions[0]
         return KLLMsChatCompletion(
             id=completion.id,
@@ -565,8 +640,83 @@ async def async_consolidate_chat_completions(
     if not completions:
         raise ValueError("Cannot consolidate empty list of completions")
 
+    # Check if we have a single completion with multiple choices (from n parameter)
+    if len(completions) == 1 and len(completions[0].choices) > 1:
+        # This is from OpenAI's n parameter - consolidate the choices
+        completion = completions[0]
+        
+        # Use default settings if not provided
+        if consensus_settings is None:
+            consensus_settings = ConsensusSettings()
+
+        # Use dummy embeddings if not provided
+        if async_get_openai_embeddings_from_text is None:
+            async_get_openai_embeddings_from_text = async_dummy_get_openai_embeddings_from_text
+
+        # Extract all choice contents for consensus
+        all_contents = []
+        for choice in completion.choices:
+            if choice.message.content:
+                all_contents.append(choice.message.content)
+            else:
+                all_contents.append(None)
+
+        # Get consensus content
+        consensus_content, confidence = await async_consensus_values(all_contents, consensus_settings, async_get_openai_embeddings_from_text, is_last_chunk=True)
+
+        # Initialize defaults in case consensus_values doesn't return expected values
+        if consensus_content is None:
+            consensus_content = ""
+        if confidence is None:
+            confidence = 0.0
+
+        # Create consolidated message
+        consolidated_message = ChatCompletionMessage(
+            role="assistant",
+            content=consensus_content if consensus_content is not None else "",
+            function_call=completion.choices[0].message.function_call if completion.choices else None,
+            tool_calls=completion.choices[0].message.tool_calls if completion.choices else None,
+            refusal=completion.choices[0].message.refusal if completion.choices else None,
+        )
+
+        # Create consolidated choice (consensus result)
+        consolidated_choice = Choice(
+            finish_reason=completion.choices[0].finish_reason if completion.choices else "stop",
+            index=0,
+            message=consolidated_message,
+            logprobs=completion.choices[0].logprobs if completion.choices else None,
+        )
+
+        # Keep original individual choices with updated indices
+        individual_choices = []
+        for i, choice in enumerate(completion.choices):
+            individual_choice = Choice(
+                finish_reason=choice.finish_reason,
+                index=i + 1,
+                message=choice.message,
+                logprobs=choice.logprobs
+            )
+            individual_choices.append(individual_choice)
+
+        # Combine consensus choice with individual choices
+        all_choices = [consolidated_choice] + individual_choices
+
+        # Create likelihood information
+        likelihoods = {"content": confidence} if isinstance(confidence, (int, float)) else None
+
+        return KLLMsChatCompletion(
+            id=completion.id,
+            choices=all_choices,
+            created=completion.created,
+            model=completion.model,
+            object=completion.object,
+            usage=completion.usage,
+            system_fingerprint=completion.system_fingerprint,
+            likelihoods=likelihoods,
+        )
+    
     if len(completions) == 1:
-        # Single completion - just wrap it
+        # Single completion with single choice - just wrap it
         completion = completions[0]
         return KLLMsChatCompletion(
             id=completion.id,

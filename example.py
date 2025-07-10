@@ -92,7 +92,7 @@ except Exception as e:
 print("\n=== Test 2: KLLMS Consensus Request ===")
 try:
     consensus_response = kllms_client.chat.completions.create(
-        model="gpt-4.1-nano", messages=[{"role": "user", "content": "What is the most efficient sorting algorithm for large datasets?"}], n_consensus=3, temperature=1.0
+        model="gpt-4.1-nano", messages=[{"role": "user", "content": "What is the most efficient sorting algorithm for large datasets?"}], n=3, temperature=1.0
     )
     print("KLLMS consensus response:", consensus_response.choices[0].message.content)
     print("KLLMS consensus response likelihoods:", consensus_response.likelihoods)
@@ -151,7 +151,7 @@ try:
         model="gpt-4.1-nano",
         messages=[{"role": "user", "content": challenging_prompt}],
         response_format=Company,
-        n_consensus=3,
+        n=3,
         temperature=1.2,  # Higher temperature for more variation
     )
     print("Parsed results (KLLMS consensus):")
@@ -200,7 +200,7 @@ try:
         model="gpt-4.1-nano",
         messages=[{"role": "user", "content": difficult_prompt}],
         response_format=Company,
-        n_consensus=5,  # More consensus for difficult case
+        n=5,  # More consensus for difficult case
         temperature=0.8,
     )
     print("Difficult prompt results:")
@@ -234,7 +234,7 @@ print("\n=== Test 6: Error Handling and Edge Cases ===")
 # Test invalid model
 print("Testing invalid model...")
 try:
-    invalid_response = kllms_client.chat.completions.create(model="gpt-invalid-model", messages=[{"role": "user", "content": "Hello"}], n_consensus=2)
+    invalid_response = kllms_client.chat.completions.create(model="gpt-invalid-model", messages=[{"role": "user", "content": "Hello"}], n=2)
     print("Invalid model test passed (unexpected)")
 except Exception as e:
     print(f"Invalid model test caught error (expected): {e}")
@@ -242,7 +242,7 @@ except Exception as e:
 # Test empty messages
 print("Testing empty messages...")
 try:
-    empty_response = kllms_client.chat.completions.create(model="gpt-4.1-nano", messages=[], n_consensus=2)
+    empty_response = kllms_client.chat.completions.create(model="gpt-4.1-nano", messages=[], n=2)
     print("Empty messages test passed (unexpected)")
 except Exception as e:
     print(f"Empty messages test caught error (expected): {e}")
@@ -253,7 +253,7 @@ try:
     extreme_consensus = kllms_client.chat.completions.create(
         model="gpt-4.1-nano",
         messages=[{"role": "user", "content": "Say hello"}],
-        n_consensus=50,  # Very high consensus
+        n=50,  # Very high consensus
     )
     print("Extreme consensus test passed")
     print(f"Consensus length: {len(extreme_consensus.choices)}")
@@ -269,7 +269,7 @@ test_prompt = "Explain quantum computing in one sentence."
 for model in models_to_test:
     print(f"Testing model: {model}")
     try:
-        model_response = kllms_client.chat.completions.create(model=model, messages=[{"role": "user", "content": test_prompt}], n_consensus=3, temperature=0.7, max_tokens=100)
+        model_response = kllms_client.chat.completions.create(model=model, messages=[{"role": "user", "content": test_prompt}], n=3, temperature=0.7, max_tokens=100)
         content = model_response.choices[0].message.content
         print(f"  Success: {content[:100] if content else 'No content'}...")
         print(f"  Likelihoods: {model_response.likelihoods}")
@@ -285,7 +285,7 @@ temperatures = [0.0, 0.5, 1.0, 1.5, 2.0]
 for temp in temperatures:
     print(f"Testing temperature: {temp}")
     try:
-        temp_response = kllms_client.chat.completions.create(model="gpt-4.1-nano", messages=[{"role": "user", "content": creative_prompt}], n_consensus=3, temperature=temp)
+        temp_response = kllms_client.chat.completions.create(model="gpt-4.1-nano", messages=[{"role": "user", "content": creative_prompt}], n=3, temperature=temp)
         content = temp_response.choices[0].message.content
         print(f"  Response: {content or 'No content'}")
         if temp_response.likelihoods:
@@ -325,7 +325,7 @@ try:
         model="gpt-4.1-nano",
         messages=[{"role": "user", "content": "Is Python good for machine learning? Provide your confidence and categorize the question."}],
         response_format=SimpleResponse,
-        n_consensus=4,
+        n=4,
     )
     print("Simple response consensus:")
     for i, choice in enumerate(simple_response.choices):
@@ -343,7 +343,7 @@ try:
         model="gpt-4.1-nano",
         messages=[{"role": "user", "content": "Generate 5 random integers between 1-100, calculate their sum and average."}],
         response_format=NumberList,
-        n_consensus=3,
+        n=3,
     )
     print("Number list consensus:")
     for i, choice in enumerate(number_response.choices):
@@ -361,7 +361,7 @@ try:
         model="gpt-4.1-nano",
         messages=[{"role": "user", "content": "Should a startup prioritize growth over profitability in its first year?"}],
         response_format=BooleanDecision,
-        n_consensus=5,
+        n=5,
     )
     print("Boolean decision consensus:")
     for i, choice in enumerate(bool_response.choices):
@@ -385,7 +385,7 @@ conversation_messages = [
 ]
 
 try:
-    conversation_response = kllms_client.chat.completions.create(model="gpt-4.1-nano", messages=conversation_messages, n_consensus=3, temperature=0.8)
+    conversation_response = kllms_client.chat.completions.create(model="gpt-4.1-nano", messages=conversation_messages, n=3, temperature=0.8)
     print("Multi-turn conversation response:")
     content = conversation_response.choices[0].message.content
     print(f"Response: {content or 'No content'}")
@@ -423,14 +423,14 @@ single_result = time_request(
 
 # Time consensus request
 consensus_result = time_request(
-    "KLLMS consensus request (n=3)", lambda: kllms_client.chat.completions.create(model="gpt-4.1-nano", messages=[{"role": "user", "content": "Count from 1 to 10"}], n_consensus=3)
+    "KLLMS consensus request (n=3)", lambda: kllms_client.chat.completions.create(model="gpt-4.1-nano", messages=[{"role": "user", "content": "Count from 1 to 10"}], n=3)
 )
 
 # Time structured output
 structured_result = time_request(
     "KLLMS structured consensus (n=3)",
     lambda: kllms_client.chat.completions.parse(
-        model="gpt-4.1-nano", messages=[{"role": "user", "content": "Generate a simple employee record"}], response_format=Employee, n_consensus=3
+        model="gpt-4.1-nano", messages=[{"role": "user", "content": "Generate a simple employee record"}], response_format=Employee, n=3
     ),
 )
 
@@ -456,7 +456,7 @@ Create data with edge cases:
 """
 
 try:
-    edge_response = kllms_client.chat.completions.parse(model="gpt-4.1-nano", messages=[{"role": "user", "content": edge_prompt}], response_format=EdgeCaseModel, n_consensus=3)
+    edge_response = kllms_client.chat.completions.parse(model="gpt-4.1-nano", messages=[{"role": "user", "content": edge_prompt}], response_format=EdgeCaseModel, n=3)
     print("Edge case model consensus:")
     for i, choice in enumerate(edge_response.choices):
         if choice.message.parsed:
@@ -498,7 +498,7 @@ scenarios = [("Low temperature (should have high consensus)", 0.1), ("High tempe
 for desc, temp in scenarios:
     try:
         test_response = kllms_client.chat.completions.create(
-            model="gpt-4.1-nano", messages=[{"role": "user", "content": "What is the capital of France?"}], n_consensus=5, temperature=temp
+            model="gpt-4.1-nano", messages=[{"role": "user", "content": "What is the capital of France?"}], n=5, temperature=temp
         )
         analyze_consensus_quality(test_response, desc)
     except Exception as e:
@@ -511,7 +511,7 @@ print("Testing rapid consecutive requests...")
 rapid_results = []
 for i in range(5):
     try:
-        result = kllms_client.chat.completions.create(model="gpt-4.1-nano", messages=[{"role": "user", "content": f"Quick response #{i + 1}"}], n_consensus=2, max_tokens=50)
+        result = kllms_client.chat.completions.create(model="gpt-4.1-nano", messages=[{"role": "user", "content": f"Quick response #{i + 1}"}], n=2, max_tokens=50)
         rapid_results.append(result)
         print(f"  Request {i + 1}: Success")
     except Exception as e:

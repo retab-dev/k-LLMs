@@ -103,7 +103,7 @@ try:
         model="gpt-4.1-nano",
         messages=[{"role": "user", "content": challenging_prompt}],
         response_format=Company,
-        n_consensus=3,
+        n=3,
         temperature=1.2,  # Higher temperature for more variation
     )
     print("Parsed results (KLLMS consensus):")

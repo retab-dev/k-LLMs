@@ -101,7 +101,7 @@ def test_consensus_functionality(self):
     response = self.kllms_client.chat.completions.create(
         model=self.test_model,
         messages=[{"role": "user", "content": "What is 2+2?"}],
-        n_consensus=3,
+        n=3,
         temperature=0.1
     )
     
@@ -209,7 +209,7 @@ Typical performance characteristics (may vary by environment):
 | Test Type | Avg Response Time | Throughput | Consensus Quality |
 |-----------|------------------|------------|------------------|
 | Single Request | ~0.5s | ~2.0 req/s | N/A |
-| Consensus (n=3) | ~1.2s | ~0.8 req/s | ~0.85 |
+| Consensus (n=3) | ~0.8s | ~1.2 req/s | ~0.85 |
 | Structured Output | ~1.5s | ~0.7 req/s | ~0.82 |
 | Concurrent (5 workers) | ~2.1s | ~2.4 req/s | ~0.80 |
 
@@ -260,7 +260,7 @@ max_tokens=50  # Reduce token limits
 
 If tests are running slowly:
 1. Reduce number of requests in test files
-2. Use smaller `n_consensus` values
+2. Use smaller `n` values
 3. Set lower `max_tokens` limits
 4. Check network connection
 

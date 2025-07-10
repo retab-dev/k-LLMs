@@ -31,7 +31,7 @@ class Responses:
         *,
         model: str,
         input: Any,
-        n_consensus: Optional[int] = None,
+        n: Optional[int] = None,
         **kwargs,
     ) -> KLLMsResponse:
         """
@@ -40,7 +40,7 @@ class Responses:
         Args:
             model: The model to use for the response
             input: Input for the conversation (format depends on API implementation)
-            n_consensus: Number of parallel requests to make (default: 1)
+            n: Number of parallel requests to make (default: 1)
             **kwargs: Additional parameters to pass to the API
 
         Returns:
@@ -54,10 +54,10 @@ class Responses:
         def embeddings_wrapper(texts: List[str]) -> List[List[float]]:
             return self._wrapper.get_embeddings(texts, "text-embedding-3-small", 2048, False)
 
-        if n_consensus and n_consensus >= 1:
-            # Make n_consensus parallel requests
+        if n and n >= 1:
+            # Make n parallel requests
             responses = []
-            for _ in range(n_consensus):
+            for _ in range(n):
                 response = self._responses.create(**call_params)
                 responses.append(response)
 
@@ -73,7 +73,7 @@ class Responses:
         *,
         model: str,
         input: Any,
-        n_consensus: Optional[int] = None,
+        n: Optional[int] = None,
         **kwargs,
     ) -> KLLMsResponse:
         """
@@ -82,7 +82,7 @@ class Responses:
         Args:
             model: The model to use for the response
             input: Input for the conversation (format depends on API implementation)
-            n_consensus: Number of parallel requests to make (default: 1)
+            n: Number of parallel requests to make (default: 1)
             **kwargs: Additional parameters to pass to the API
 
         Returns:
@@ -96,10 +96,10 @@ class Responses:
         def embeddings_wrapper(texts: List[str]) -> List[List[float]]:
             return self._wrapper.get_embeddings(texts, "text-embedding-3-small", 2048, False)
 
-        if n_consensus and n_consensus >= 1:
-            # Make n_consensus parallel requests
+        if n and n >= 1:
+            # Make n parallel requests
             responses = []
-            for _ in range(n_consensus):
+            for _ in range(n):
                 response = self._responses.parse(**call_params)
                 responses.append(response)
 
@@ -127,7 +127,7 @@ class AsyncResponses:
         *,
         model: str,
         input: Any,
-        n_consensus: Optional[int] = None,
+        n: Optional[int] = None,
         **kwargs,
     ) -> KLLMsResponse:
         """
@@ -136,7 +136,7 @@ class AsyncResponses:
         Args:
             model: The model to use for the response
             input: Input for the conversation (format depends on API implementation)
-            n_consensus: Number of parallel requests to make (default: 1)
+            n: Number of parallel requests to make (default: 1)
             **kwargs: Additional parameters to pass to the API
 
         Returns:
@@ -153,13 +153,13 @@ class AsyncResponses:
         async def embeddings_wrapper(texts: List[str]) -> List[List[float]]:
             return await self._wrapper.get_embeddings(texts, "text-embedding-3-small", 2048, False)
 
-        if n_consensus and n_consensus >= 1:
-            # For multiple requests, use true parallel execution
+        if n and n > 1:
+            # Note: Responses API doesn't support n parameter natively, so we make parallel requests
             async def make_request():
                 return await self._responses.create(**call_params)
 
             # Create tasks for parallel execution
-            tasks = [make_request() for _ in range(n_consensus)]
+            tasks = [make_request() for _ in range(n)]
 
             # Execute all tasks concurrently
             responses = await asyncio.gather(*tasks)
@@ -176,7 +176,7 @@ class AsyncResponses:
         *,
         model: str,
         input: Any,
-        n_consensus: Optional[int] = None,
+        n: Optional[int] = None,
         **kwargs,
     ) -> KLLMsResponse:
         """
@@ -185,7 +185,7 @@ class AsyncResponses:
         Args:
             model: The model to use for the response
             input: Input for the conversation (format depends on API implementation)
-            n_consensus: Number of parallel requests to make (default: 1)
+            n: Number of parallel requests to make (default: 1)
             **kwargs: Additional parameters to pass to the API
 
         Returns:
@@ -202,13 +202,13 @@ class AsyncResponses:
         async def embeddings_wrapper(texts: List[str]) -> List[List[float]]:
             return await self._wrapper.get_embeddings(texts, "text-embedding-3-small", 2048, False)
 
-        if n_consensus and n_consensus >= 1:
-            # For multiple requests, use parallel execution
+        if n and n > 1:
+            # Note: Responses API doesn't support n parameter natively, so we make parallel requests
             async def make_request():
                 return await self._responses.parse(**call_params)
 
             # Create tasks for parallel execution
-            tasks = [make_request() for _ in range(n_consensus)]
+            tasks = [make_request() for _ in range(n)]
 
             # Execute all tasks concurrently
             responses = await asyncio.gather(*tasks)

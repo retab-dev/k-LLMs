@@ -20,7 +20,7 @@ try:
     client = KLLMs()
 
     print("3. Making consensus request...")
-    response = client.chat.completions.create(model="gpt-4.1-nano", messages=[{"role": "user", "content": "What is 2+2?"}], n_consensus=3, temperature=0.1)
+    response = client.chat.completions.create(model="gpt-4.1-nano", messages=[{"role": "user", "content": "What is 2+2?"}], n=3, temperature=0.1)
 
     print("4. Checking response...")
     print(f"   Response type: {type(response)}")
