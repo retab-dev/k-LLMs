@@ -1,0 +1,68 @@
+########################
+## Imports from the standard library
+########################
+# typing
+# copy
+# json
+# collections
+# datetime
+# re
+# asyncio
+# pathlib
+# concurrent
+# types
+# os
+# functools
+# base64
+# hashlib
+Pillow
+# io
+# math
+# time
+
+########################
+## More exotic dependencies
+########################
+httpx
+pydantic
+pydantic_core
+requests
+tqdm
+types-tqdm
+backoff
+termplotlib
+Levenshtein
+pandas
+numpy
+motor
+rich
+puremagic
+
+########################
+## Validation dependencies
+########################
+pycountry
+phonenumbers
+email_validator
+python-stdnum
+nanoid
+
+########################
+## AI dependencies
+########################
+openai
+google-genai
+google-generativeai
+anthropic
+tiktoken
+
+
+########################
+## SSL dependencies
+########################
+truststore
+
+########################
+## Development dependencies
+########################
+ruff
