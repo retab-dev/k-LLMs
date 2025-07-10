@@ -6,7 +6,7 @@ with open("requirements.txt") as f:
 
 setup(
     name="k-llms",
-    version="0.0.42",
+    version="0.0.50",
     author="Retab",
     author_email="contact@retab.com",
     description="Retab official python library",

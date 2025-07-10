@@ -9,6 +9,7 @@ k-llms is a wrapper around the OpenAI client that adds consensus functionality t
 - Drop-in replacement for OpenAI client
 - Adds `n_consensus` parameter to make multiple parallel requests
 - Automatic result consolidation using majority voting
+- Likelihood computations
 - Support for both sync and async operations
 - Compatible with all OpenAI chat completion parameters
 - Support for structured outputs with `parse()`
@@ -18,6 +19,7 @@ k-llms is a wrapper around the OpenAI client that adds consensus functionality t
 ```python
 # The wrapper uses the official OpenAI client
 pip install openai
+pip install k-llms
 ```
 
 ## Usage
