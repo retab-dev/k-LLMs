@@ -1,0 +1,170 @@
+Metadata-Version: 2.4
+Name: k-llms
+Version: 0.0.42
+Summary: Retab official python library
+Home-page: https://github.com/Retab-dev/retab
+Author: Retab
+Author-email: contact@retab.com
+Project-URL: Team website, https://retab.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Operating System :: MacOS
+Classifier: Intended Audience :: Science/Research
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+Requires-Dist: Pillow
+Requires-Dist: httpx
+Requires-Dist: pydantic
+Requires-Dist: pydantic_core
+Requires-Dist: requests
+Requires-Dist: tqdm
+Requires-Dist: types-tqdm
+Requires-Dist: backoff
+Requires-Dist: termplotlib
+Requires-Dist: Levenshtein
+Requires-Dist: pandas
+Requires-Dist: numpy
+Requires-Dist: motor
+Requires-Dist: rich
+Requires-Dist: puremagic
+Requires-Dist: pycountry
+Requires-Dist: phonenumbers
+Requires-Dist: email_validator
+Requires-Dist: python-stdnum
+Requires-Dist: nanoid
+Requires-Dist: openai
+Requires-Dist: google-genai
+Requires-Dist: google-generativeai
+Requires-Dist: anthropic
+Requires-Dist: tiktoken
+Requires-Dist: truststore
+Requires-Dist: ruff
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: project-url
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# KLLMS OpenAI Wrapper
+
+A wrapper around the OpenAI client that adds consensus functionality through the `n_consensus` parameter.
+
+## Features
+
+- Drop-in replacement for OpenAI client
+- Adds `n_consensus` parameter to make multiple parallel requests
+- Automatic result consolidation using majority voting
+- Support for both sync and async operations
+- Compatible with all OpenAI chat completion parameters
+- Support for structured outputs with `parse()`
+
+## Installation
+
+```python
+# The wrapper uses the official OpenAI client
+pip install openai
+```
+
+## Usage
+
+### Basic Usage
+
+```python
+from k_llms import KLLMs
+from openai import OpenAI
+
+# Initialize the client (uses OPENAI_API_KEY env var by default)
+kllms_client = KLLMs()
+
+openai_client = OpenAI()
+
+# Make a single request (normal OpenAI behavior)
+response = openai_client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+
+# Make multiple requests with consensus
+consensus_response = kllms_client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "What is 2+2?"}],
+    n_consensus=3  # Makes 3 parallel requests and consolidates
+)
+```
+
+### Structured Outputs with Parse
+
+```python
+from pydantic import BaseModel
+
+class UserInfo(BaseModel):
+    name: str
+    age: int
+
+# Single parse request
+result = openai_client.chat.completions.parse(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "John is 30 years old"}],
+    response_format=UserInfo
+)
+
+# Multiple parse requests - returns list for custom consolidation
+results = kllms_client.chat.completions.parse(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "John is 30 years old"}],
+    response_format=UserInfo,
+    n_consensus=3
+)
+```
+
+### Async Usage
+
+```python
+from k_llms import AsyncKLLMs
+from openai import AsyncOpenAI
+import asyncio
+
+async def main():
+    kllms_client = AsyncKLLMs()
+    openai_client = AsyncOpenAI()
+    
+    response = await openai_client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": "Hello!"}],
+        n_consensus=3
+    )
+    print(response.choices[0].message.content)
+
+asyncio.run(main())
+```
+
+## How Consensus Works
+
+When `n_consensus > 1`:
+
+1. The wrapper makes `n_consensus` parallel requests to the API
+2. For `completions.create()`: Results are consolidated using majority voting
+   - For simple values: Most common value wins
+   - For JSON/dict responses: Field-by-field majority voting
+   - For lists: Element-by-element consolidation
+3. For `parse()`: Returns all parsed results as a list for custom consolidation
+
+## API Compatibility
+
+The wrapper maintains full compatibility with the OpenAI client API. All parameters supported by the official client work seamlessly, including:
+
+- `temperature`, `top_p`, `max_tokens`
+- `response_format`, `tools`, `tool_choice`
+- `stream` (note: streaming with consensus is not yet implemented)
+- All other OpenAI parameters
+
+## Limitations
+
+- Streaming is not yet supported with `n_consensus > 1`
+- The `n` parameter is ignored when using `n_consensus` to avoid conflicts
