@@ -88,7 +88,7 @@ def run_consensus_test():
         from k_llms import KLLMs
 
         client = KLLMs()
-        response = client.chat.completions.create(model="gpt-4.1-nano", messages=[{"role": "user", "content": "What is 2+2?"}], n_consensus=3, temperature=0.1)
+        response = client.chat.completions.create(model="gpt-4.1-nano", messages=[{"role": "user", "content": "What is 2+2?"}], n=3, temperature=0.1)
 
         if response and response.choices and len(response.choices) > 0:
             print("✅ Consensus test passed!")

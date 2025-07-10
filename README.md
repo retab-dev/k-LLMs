@@ -2,12 +2,12 @@
 
 Built with 🩷 at [retab](https://retab.com)
 
-k-llms is a wrapper around the OpenAI client that adds consensus functionality through the `n_consensus` parameter.
+k-llms is a wrapper around the OpenAI client that adds consensus functionality through the `n` parameter.
 
 ## Features
 
 - Drop-in replacement for OpenAI client
-- Adds `n_consensus` parameter to make multiple parallel requests
+- Uses the `n` parameter to generate multiple completions efficiently
 - Automatic result consolidation using majority voting
 - Likelihood computations
 - Support for both sync and async operations
@@ -45,7 +45,7 @@ response = openai_client.chat.completions.create(
 consensus_response = kllms_client.chat.completions.create(
     model="gpt-4o-mini",
     messages=[{"role": "user", "content": "What is 2+2?"}],
-    n_consensus=3  # Makes 3 parallel requests and consolidates
+    n=3  # Generates 3 completions and consolidates
 )
 ```
 
@@ -70,7 +70,7 @@ result = kllms_client.chat.completions.parse(
     model="gpt-4o-mini",
     messages=[{"role": "user", "content": "John is 30 years old"}],
     response_format=UserInfo,
-    n_consensus=3
+    n=3
 )
 
 # Access consolidated result
@@ -89,10 +89,10 @@ async def main():
     kllms_client = AsyncKLLMs()
     openai_client = AsyncOpenAI()
     
-    response = await openai_client.chat.completions.create(
+    response = await kllms_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": "Hello!"}],
-        n_consensus=3
+        n=3
     )
     print(response.choices[0].message.content)
 
@@ -101,14 +101,15 @@ asyncio.run(main())
 
 ## How Consensus Works
 
-When `n_consensus > 1`:
+When `n > 1`:
 
-1. The wrapper makes `n_consensus` parallel requests to the API
-2. For both `completions.create()` and `parse()`: Results are consolidated using majority voting
+1. For chat completions: Uses OpenAI's native `n` parameter to generate multiple completions in a single API call
+2. For responses API: Makes parallel requests (as the Responses API doesn't support the `n` parameter)
+3. For both `completions.create()` and `parse()`: Results are consolidated using majority voting
    - For simple values: Most common value wins
    - For JSON/dict responses: Field-by-field majority voting
    - For lists: Element-by-element consolidation
-3. All responses return a choices array where:
+4. All responses return a choices array where:
    - `choices[0]`: Consolidated/consensus result
    - `choices[1...n]`: Individual original results from each API call
 
@@ -124,4 +125,3 @@ The wrapper maintains full compatibility with the OpenAI client API. All paramet
 ## Limitations
 
 - Streaming is not supported (all requests return `KLLMsChatCompletion` objects)
-- The `n` parameter is ignored when using `n_consensus` to avoid conflicts

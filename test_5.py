@@ -101,7 +101,7 @@ try:
         model="gpt-4.1-nano",
         messages=[{"role": "user", "content": difficult_prompt}],
         response_format=Company,
-        n_consensus=5,  # More consensus for difficult case
+        n=5,  # More consensus for difficult case
         temperature=0.8,
     )
     print("Difficult prompt results:")

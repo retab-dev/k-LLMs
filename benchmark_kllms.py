@@ -97,9 +97,9 @@ class PerformanceBenchmark:
             throughput_rps=successful / total_time if total_time > 0 else 0,
         )
 
-    def consensus_latency_test(self, num_requests: int = 20, n_consensus: int = 3) -> BenchmarkResult:
+    def consensus_latency_test(self, num_requests: int = 20, n: int = 3) -> BenchmarkResult:
         """Test latency and quality of consensus requests."""
-        print(f"Running consensus latency test ({num_requests} requests, n_consensus={n_consensus})...")
+        print(f"Running consensus latency test ({num_requests} requests, n={n})...")
 
         response_times = []
         consensus_qualities = []
@@ -111,7 +111,7 @@ class PerformanceBenchmark:
             request_start = time.time()
             try:
                 response = self.kllms_client.chat.completions.create(
-                    model=self.test_model, messages=[{"role": "user", "content": f"What is 2+2? Request #{i + 1}"}], n_consensus=n_consensus, max_tokens=30, temperature=0.2
+                    model=self.test_model, messages=[{"role": "user", "content": f"What is 2+2? Request #{i + 1}"}], n=n, max_tokens=30, temperature=0.2
                 )
                 request_end = time.time()
                 response_times.append(request_end - request_start)
@@ -129,7 +129,7 @@ class PerformanceBenchmark:
         total_time = time.time() - start_time
 
         return BenchmarkResult(
-            test_name=f"Consensus Latency (n={n_consensus})",
+            test_name=f"Consensus Latency (n={n})",
             total_requests=num_requests,
             successful_requests=successful,
             failed_requests=failed,
@@ -159,7 +159,7 @@ class PerformanceBenchmark:
                     model=self.test_model,
                     messages=[{"role": "user", "content": f"Create a task: 'Complete task #{i + 1}' with priority {(i % 5) + 1}"}],
                     response_format=SimpleTask,
-                    n_consensus=2,
+                    n=2,
                     temperature=0.3,
                 )
                 request_end = time.time()
@@ -205,7 +205,7 @@ class PerformanceBenchmark:
             start_time = time.time()
             try:
                 response = self.kllms_client.chat.completions.create(
-                    model=self.test_model, messages=[{"role": "user", "content": f"Concurrent request #{request_id}"}], n_consensus=2, max_tokens=30
+                    model=self.test_model, messages=[{"role": "user", "content": f"Concurrent request #{request_id}"}], n=2, max_tokens=30
                 )
                 end_time = time.time()
                 return {
@@ -268,8 +268,8 @@ class PerformanceBenchmark:
         consensus_values = [1, 2, 3, 5, 7, 10]
         results = []
 
-        for n_consensus in consensus_values:
-            print(f"  Testing n_consensus={n_consensus}...")
+        for n in consensus_values:
+            print(f"  Testing n={n}...")
 
             response_times = []
             consensus_qualities = []
@@ -283,7 +283,7 @@ class PerformanceBenchmark:
                 request_start = time.time()
                 try:
                     response = self.kllms_client.chat.completions.create(
-                        model=self.test_model, messages=[{"role": "user", "content": "Count from 1 to 5"}], n_consensus=n_consensus, max_tokens=50, temperature=0.5
+                        model=self.test_model, messages=[{"role": "user", "content": "Count from 1 to 5"}], n=n, max_tokens=50, temperature=0.5
                     )
                     request_end = time.time()
                     response_times.append(request_end - request_start)
@@ -301,7 +301,7 @@ class PerformanceBenchmark:
             total_time = time.time() - start_time
 
             result = BenchmarkResult(
-                test_name=f"Consensus Scaling (n={n_consensus})",
+                test_name=f"Consensus Scaling (n={n})",
                 total_requests=num_requests,
                 successful_requests=successful,
                 failed_requests=failed,
@@ -343,7 +343,7 @@ class PerformanceBenchmark:
                     response = self.kllms_client.chat.completions.create(
                         model=self.test_model,
                         messages=[{"role": "user", "content": "Write one sentence about artificial intelligence."}],
-                        n_consensus=4,
+                        n=4,
                         temperature=temp,
                         max_tokens=100,
                     )

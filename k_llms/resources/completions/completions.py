@@ -1,5 +1,4 @@
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 from openai.types.chat import ChatCompletion
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
@@ -22,7 +21,7 @@ class Completions:
         *,
         messages: List[ChatCompletionMessageParam],
         model: str,
-        n_consensus: Optional[int] = None,
+        n: Optional[int] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         top_p: Optional[float] = None,
@@ -61,20 +60,12 @@ class Completions:
         def embeddings_wrapper(texts: List[str]) -> List[List[float]]:
             return self._wrapper.get_embeddings(texts, "text-embedding-3-small", 2048, False)
 
-        if n_consensus and n_consensus >= 1:
-            # Remove n parameter if present to avoid conflicts
-            call_params.pop("n", None)
-
-            # Make n_consensus parallel requests
-            with ThreadPoolExecutor() as executor:
-                futures = [
-                    executor.submit(self._wrapper.client.chat.completions.create, **call_params)
-                    for _ in range(n_consensus)
-                ]
-                completions = [future.result() for future in futures]
-
-            # Return consolidated result
-            return consolidate_chat_completions(completions, embeddings_wrapper)
+        if n and n > 1:
+            # Use OpenAI's native n parameter to generate multiple completions in one request
+            call_params["n"] = n
+            completion = self._wrapper.client.chat.completions.create(**call_params)
+            # The completion will have multiple choices, consolidate them
+            return consolidate_chat_completions([completion], embeddings_wrapper)
         else:
             # Single request - wrap in KLLMsChatCompletion
             completion = self._wrapper.client.chat.completions.create(**call_params)
@@ -86,7 +77,7 @@ class Completions:
         messages: List[ChatCompletionMessageParam],
         model: str,
         response_format: type[ResponseFormatT],
-        n_consensus: Optional[int] = None,
+        n: Optional[int] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         top_p: Optional[float] = None,
@@ -122,20 +113,12 @@ class Completions:
         def embeddings_wrapper(texts: List[str]) -> List[List[float]]:
             return self._wrapper.get_embeddings(texts, "text-embedding-3-small", 2048, False)
 
-        if n_consensus and n_consensus >= 1:
-            # Remove n parameter if present to avoid conflicts
-            call_params.pop("n", None)
-
-            # Make n_consensus parallel requests
-            with ThreadPoolExecutor() as executor:
-                futures = [
-                    executor.submit(self._wrapper.client.beta.chat.completions.parse, **call_params)
-                    for _ in range(n_consensus)
-                ]
-                completions = [future.result() for future in futures]
-
-            # Return consolidated parsed result
-            return consolidate_parsed_chat_completions(completions, embeddings_wrapper)
+        if n and n > 1:
+            # Use OpenAI's native n parameter to generate multiple completions in one request
+            call_params["n"] = n
+            completion = self._wrapper.client.beta.chat.completions.parse(**call_params)
+            # The completion will have multiple choices, consolidate them
+            return consolidate_parsed_chat_completions([completion], embeddings_wrapper)
         else:
             # Single request - wrap in KLLMsParsedChatCompletion
             completion = self._wrapper.client.beta.chat.completions.parse(**call_params)
@@ -151,7 +134,7 @@ class AsyncCompletions:
         *,
         messages: List[ChatCompletionMessageParam],
         model: str,
-        n_consensus: Optional[int] = None,
+        n: Optional[int] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         top_p: Optional[float] = None,
@@ -193,20 +176,12 @@ class AsyncCompletions:
         async def embeddings_wrapper(texts: List[str]) -> List[List[float]]:
             return await self._wrapper.get_embeddings(texts, "text-embedding-3-small", 2048, False)
 
-        if n_consensus and n_consensus >= 1:
-            # Remove n parameter if present to avoid conflicts
-            call_params.pop("n", None)
-
-            # Make n_consensus parallel requests
-            tasks = []
-            for _ in range(n_consensus):
-                task = self._wrapper.client.chat.completions.create(**call_params)
-                tasks.append(task)
-
-            completions = await asyncio.gather(*tasks)
-
-            # Return consolidated result
-            return await async_consolidate_chat_completions(completions, embeddings_wrapper)
+        if n and n > 1:
+            # Use OpenAI's native n parameter to generate multiple completions in one request
+            call_params["n"] = n
+            completion = await self._wrapper.client.chat.completions.create(**call_params)
+            # The completion will have multiple choices, consolidate them
+            return await async_consolidate_chat_completions([completion], embeddings_wrapper)
         else:
             # Single request - wrap in KLLMsChatCompletion
             completion = await self._wrapper.client.chat.completions.create(**call_params)
@@ -218,7 +193,7 @@ class AsyncCompletions:
         messages: List[ChatCompletionMessageParam],
         model: str,
         response_format: type[ResponseFormatT],
-        n_consensus: Optional[int] = None,
+        n: Optional[int] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         top_p: Optional[float] = None,
@@ -257,20 +232,12 @@ class AsyncCompletions:
         async def embeddings_wrapper(texts: List[str]) -> List[List[float]]:
             return await self._wrapper.get_embeddings(texts, "text-embedding-3-small", 2048, False)
 
-        if n_consensus and n_consensus >= 1:
-            # Remove n parameter if present to avoid conflicts
-            call_params.pop("n", None)
-
-            # Make n_consensus parallel requests
-            tasks = []
-            for _ in range(n_consensus):
-                task = self._wrapper.client.beta.chat.completions.parse(**call_params)
-                tasks.append(task)
-
-            completions = await asyncio.gather(*tasks)
-
-            # Return consolidated parsed result
-            return await async_consolidate_parsed_chat_completions(completions, embeddings_wrapper)
+        if n and n > 1:
+            # Use OpenAI's native n parameter to generate multiple completions in one request
+            call_params["n"] = n
+            completion = await self._wrapper.client.beta.chat.completions.parse(**call_params)
+            # The completion will have multiple choices, consolidate them
+            return await async_consolidate_parsed_chat_completions([completion], embeddings_wrapper)
         else:
             # Single request - wrap in KLLMsParsedChatCompletion
             completion = await self._wrapper.client.beta.chat.completions.parse(**call_params)

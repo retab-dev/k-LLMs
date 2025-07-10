@@ -86,7 +86,7 @@ print("\n=== Test 6: Error Handling and Edge Cases ===")
 # Test invalid model
 print("Testing invalid model...")
 try:
-    invalid_response = kllms_client.chat.completions.create(model="gpt-invalid-model", messages=[{"role": "user", "content": "Hello"}], n_consensus=2)
+    invalid_response = kllms_client.chat.completions.create(model="gpt-invalid-model", messages=[{"role": "user", "content": "Hello"}], n=2)
     print("Invalid model test passed (unexpected)")
 except Exception as e:
     print(f"Invalid model test caught error (expected): {e}")
@@ -94,7 +94,7 @@ except Exception as e:
 # Test empty messages
 print("Testing empty messages...")
 try:
-    empty_response = kllms_client.chat.completions.create(model="gpt-4.1-nano", messages=[], n_consensus=2)
+    empty_response = kllms_client.chat.completions.create(model="gpt-4.1-nano", messages=[], n=2)
     print("Empty messages test passed (unexpected)")
 except Exception as e:
     print(f"Empty messages test caught error (expected): {e}")
@@ -105,7 +105,7 @@ try:
     extreme_consensus = kllms_client.chat.completions.create(
         model="gpt-4.1-nano",
         messages=[{"role": "user", "content": "Say hello"}],
-        n_consensus=50,  # Very high consensus
+        n=50,  # Very high consensus
     )
     print("Extreme consensus test passed")
     print(f"Total choices: {len(extreme_consensus.choices)} (1 consensus + 50 individual)")

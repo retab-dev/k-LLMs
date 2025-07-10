@@ -86,7 +86,7 @@ try:
     consensus_response = kllms_client.chat.completions.create(
         model="gpt-4.1-nano",
         messages=[{"role": "user", "content": "What is the most efficient sorting algorithm for large datasets? Make the explanation very very short"}],
-        n_consensus=3,
+        n=3,
         temperature=1.0,
     )
     print("KLLMS consensus response:", consensus_response.choices[0].message.content)

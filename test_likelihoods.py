@@ -14,7 +14,7 @@ print("=== Testing Simple Consensus with Likelihoods ===")
 consensus_response = kllms_client.chat.completions.create(
     model="gpt-4o-mini", 
     messages=[{"role": "user", "content": "What is the capital of France?"}], 
-    n_consensus=3
+    n=3
 )
 
 print("Consolidated response:", consensus_response.choices[0].message.content)
@@ -35,7 +35,7 @@ parsed_response = kllms_client.chat.completions.parse(
     model="gpt-4o-mini", 
     messages=[{"role": "user", "content": "Create a person: Alice who is 25 years old and lives in Paris"}], 
     response_format=PersonInfo, 
-    n_consensus=3
+    n=3
 )
 
 print("Consolidated parsed result:", parsed_response.choices[0].message.parsed)
@@ -49,7 +49,7 @@ print("=== Testing Single Request (Should show 100% confidence) ===")
 single_response = kllms_client.chat.completions.create(
     model="gpt-4o-mini", 
     messages=[{"role": "user", "content": "What is 1+1?"}], 
-    n_consensus=1
+    n=1
 )
 
 print("Single response:", single_response.choices[0].message.content)

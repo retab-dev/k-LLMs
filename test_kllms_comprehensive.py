@@ -87,7 +87,7 @@ class KLLMSTestSuite(unittest.TestCase):
 
     def test_consensus_functionality(self):
         """Test consensus mechanism with multiple responses."""
-        response = self.kllms_client.chat.completions.create(model=self.test_model, messages=[{"role": "user", "content": "What is 2+2?"}], n_consensus=3, temperature=0.1)
+        response = self.kllms_client.chat.completions.create(model=self.test_model, messages=[{"role": "user", "content": "What is 2+2?"}], n=3, temperature=0.1)
 
         self.assertIsNotNone(response)
         self.assertGreater(len(response.choices), 0)
@@ -107,7 +107,7 @@ class KLLMSTestSuite(unittest.TestCase):
             model=self.test_model,
             messages=[{"role": "user", "content": "Is Python a good programming language? Rate your confidence."}],
             response_format=SimpleAnswer,
-            n_consensus=2,
+            n=2,
         )
 
         self.assertIsNotNone(response)
@@ -132,7 +132,7 @@ class KLLMSTestSuite(unittest.TestCase):
         - Team size: 5
         """
 
-        response = self.kllms_client.chat.completions.parse(model=self.test_model, messages=[{"role": "user", "content": prompt}], response_format=Project, n_consensus=2)
+        response = self.kllms_client.chat.completions.parse(model=self.test_model, messages=[{"role": "user", "content": prompt}], response_format=Project, n=2)
 
         self.assertIsNotNone(response)
         self.assertGreater(len(response.choices), 0)
@@ -157,10 +157,10 @@ class KLLMSTestSuite(unittest.TestCase):
         prompt = "Write a creative sentence about space exploration."
 
         # Low temperature - should have higher consensus
-        low_temp_response = self.kllms_client.chat.completions.create(model=self.test_model, messages=[{"role": "user", "content": prompt}], n_consensus=3, temperature=0.1)
+        low_temp_response = self.kllms_client.chat.completions.create(model=self.test_model, messages=[{"role": "user", "content": prompt}], n=3, temperature=0.1)
 
         # High temperature - should have lower consensus
-        high_temp_response = self.kllms_client.chat.completions.create(model=self.test_model, messages=[{"role": "user", "content": prompt}], n_consensus=3, temperature=1.5)
+        high_temp_response = self.kllms_client.chat.completions.create(model=self.test_model, messages=[{"role": "user", "content": prompt}], n=3, temperature=1.5)
 
         # Calculate variance in likelihoods (extract numeric values)
         low_temp_values = [v for v in low_temp_response.likelihoods.values() if isinstance(v, (int, float))]
@@ -182,7 +182,7 @@ class KLLMSTestSuite(unittest.TestCase):
             model=self.test_model,
             messages=[{"role": "user", "content": "Solve: If a train travels 60 mph for 2.5 hours, how far does it go? Show your work."}],
             response_format=MathProblem,
-            n_consensus=3,
+            n=3,
             temperature=0.2,
         )
 
@@ -205,23 +205,23 @@ class KLLMSTestSuite(unittest.TestCase):
     def test_error_handling_invalid_model(self):
         """Test error handling with invalid model name."""
         with self.assertRaises(Exception):
-            self.kllms_client.chat.completions.create(model="invalid-model-name", messages=[{"role": "user", "content": "Hello"}], n_consensus=2)
+            self.kllms_client.chat.completions.create(model="invalid-model-name", messages=[{"role": "user", "content": "Hello"}], n=2)
 
     def test_error_handling_empty_messages(self):
         """Test error handling with empty messages."""
         with self.assertRaises(Exception):
-            self.kllms_client.chat.completions.create(model=self.test_model, messages=[], n_consensus=2)
+            self.kllms_client.chat.completions.create(model=self.test_model, messages=[], n=2)
 
     def test_error_handling_invalid_consensus(self):
         """Test error handling with invalid consensus values."""
-        # Test with n_consensus = 0 - this should fall back to single request (no exception)
-        response = self.kllms_client.chat.completions.create(model=self.test_model, messages=[{"role": "user", "content": "Hello"}], n_consensus=0)
+        # Test with n = 0 - this should fall back to single request (no exception)
+        response = self.kllms_client.chat.completions.create(model=self.test_model, messages=[{"role": "user", "content": "Hello"}], n=0)
         self.assertIsNotNone(response)
-        self.assertEqual(len(response.choices), 1)  # Single choice when n_consensus=0
+        self.assertEqual(len(response.choices), 1)  # Single choice when n=0
 
     def test_large_consensus_values(self):
         """Test behavior with large consensus values."""
-        response = self.kllms_client.chat.completions.create(model=self.test_model, messages=[{"role": "user", "content": "Say hello"}], n_consensus=10, max_tokens=20)
+        response = self.kllms_client.chat.completions.create(model=self.test_model, messages=[{"role": "user", "content": "Say hello"}], n=10, max_tokens=20)
 
         self.assertIsNotNone(response)
         self.assertEqual(len(response.choices), 11)  # 1 consensus + 10 individual
@@ -235,7 +235,7 @@ class KLLMSTestSuite(unittest.TestCase):
             {"role": "user", "content": "How do I create a list?"},
         ]
 
-        response = self.kllms_client.chat.completions.create(model=self.test_model, messages=messages, n_consensus=2)
+        response = self.kllms_client.chat.completions.create(model=self.test_model, messages=messages, n=2)
 
         self.assertIsNotNone(response)
         self.assertGreater(len(response.choices), 0)
@@ -248,7 +248,7 @@ class KLLMSTestSuite(unittest.TestCase):
         """Test response time performance."""
         start_time = time.time()
 
-        response = self.kllms_client.chat.completions.create(model=self.test_model, messages=[{"role": "user", "content": "Quick response test"}], n_consensus=2, max_tokens=30)
+        response = self.kllms_client.chat.completions.create(model=self.test_model, messages=[{"role": "user", "content": "Quick response test"}], n=2, max_tokens=30)
 
         end_time = time.time()
         response_time = end_time - start_time
@@ -260,12 +260,12 @@ class KLLMSTestSuite(unittest.TestCase):
     def test_consensus_quality_analysis(self):
         """Test consensus quality metrics."""
         response = self.kllms_client.chat.completions.create(
-            model=self.test_model, messages=[{"role": "user", "content": "What is the capital of France?"}], n_consensus=5, temperature=0.2
+            model=self.test_model, messages=[{"role": "user", "content": "What is the capital of France?"}], n=5, temperature=0.2
         )
 
         self.assertIsNotNone(response.likelihoods)
         self.assertIsInstance(response.likelihoods, dict)
-        # With n_consensus=5, we get 6 choices (1 consensus + 5 individual)
+        # With n=5, we get 6 choices (1 consensus + 5 individual)
         self.assertEqual(len(response.choices), 6)
 
         # Calculate consensus metrics (extract numeric values from dict)
@@ -294,7 +294,7 @@ class KLLMSTestSuite(unittest.TestCase):
             model=self.test_model,
             messages=[{"role": "user", "content": "Create data with: optional_field=null, empty_list=[], union_field=123, default_int=42"}],
             response_format=EdgeCaseModel,
-            n_consensus=2,
+            n=2,
         )
 
         self.assertIsNotNone(response)
@@ -369,7 +369,7 @@ class KLLMSIntegrationTests(unittest.TestCase):
         """
 
         response = self.kllms_client.chat.completions.parse(
-            model=self.test_model, messages=[{"role": "user", "content": f"Extract key information from this news text: {text}"}], response_format=NewsArticle, n_consensus=3
+            model=self.test_model, messages=[{"role": "user", "content": f"Extract key information from this news text: {text}"}], response_format=NewsArticle, n=3
         )
 
         self.assertIsNotNone(response)
@@ -396,7 +396,7 @@ class KLLMSIntegrationTests(unittest.TestCase):
             model=self.test_model,
             messages=[{"role": "user", "content": "Write a Python function to find the factorial of a number. Include time complexity."}],
             response_format=CodeSolution,
-            n_consensus=3,
+            n=3,
             temperature=0.3,
         )
 
