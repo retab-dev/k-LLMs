@@ -18,6 +18,6 @@ k_llms/types/completions.py
 k_llms/types/parsed.py
 k_llms/types/responses.py
 k_llms/utils/__init__.py
-k_llms/utils/consensus.py
+k_llms/utils/consensus_utils.py
 k_llms/utils/consolidation.py
 k_llms/utils/majority_sorting.py

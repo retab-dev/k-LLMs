@@ -1,6 +1,6 @@
-Metadata-Version: 2.4
+Metadata-Version: 2.1
 Name: k-llms
-Version: 0.0.42
+Version: 0.0.50
 Summary: Retab official python library
 Home-page: https://github.com/Retab-dev/retab
 Author: Retab
@@ -40,26 +40,19 @@ Requires-Dist: anthropic
 Requires-Dist: tiktoken
 Requires-Dist: truststore
 Requires-Dist: ruff
-Dynamic: author
-Dynamic: author-email
-Dynamic: classifier
-Dynamic: description
-Dynamic: description-content-type
-Dynamic: home-page
-Dynamic: project-url
-Dynamic: requires-dist
-Dynamic: requires-python
-Dynamic: summary
 
-# KLLMS OpenAI Wrapper
+# k-LLMS
 
-A wrapper around the OpenAI client that adds consensus functionality through the `n_consensus` parameter.
+Built with 🩷 at [retab](https://retab.com)
+
+k-llms is a wrapper around the OpenAI client that adds consensus functionality through the `n_consensus` parameter.
 
 ## Features
 
 - Drop-in replacement for OpenAI client
 - Adds `n_consensus` parameter to make multiple parallel requests
 - Automatic result consolidation using majority voting
+- Likelihood computations
 - Support for both sync and async operations
 - Compatible with all OpenAI chat completion parameters
 - Support for structured outputs with `parse()`
@@ -69,6 +62,7 @@ A wrapper around the OpenAI client that adds consensus functionality through the
 ```python
 # The wrapper uses the official OpenAI client
 pip install openai
+pip install k-llms
 ```
 
 ## Usage
@@ -114,13 +108,17 @@ result = openai_client.chat.completions.parse(
     response_format=UserInfo
 )
 
-# Multiple parse requests - returns list for custom consolidation
-results = kllms_client.chat.completions.parse(
+# Multiple parse requests with consensus
+result = kllms_client.chat.completions.parse(
     model="gpt-4o-mini",
     messages=[{"role": "user", "content": "John is 30 years old"}],
     response_format=UserInfo,
     n_consensus=3
 )
+
+# Access consolidated result
+consensus_user = result.choices[0].message.parsed  # Consolidated UserInfo object
+original_users = [choice.message.parsed for choice in result.choices[1:]]  # Original results
 ```
 
 ### Async Usage
@@ -149,11 +147,13 @@ asyncio.run(main())
 When `n_consensus > 1`:
 
 1. The wrapper makes `n_consensus` parallel requests to the API
-2. For `completions.create()`: Results are consolidated using majority voting
+2. For both `completions.create()` and `parse()`: Results are consolidated using majority voting
    - For simple values: Most common value wins
    - For JSON/dict responses: Field-by-field majority voting
    - For lists: Element-by-element consolidation
-3. For `parse()`: Returns all parsed results as a list for custom consolidation
+3. All responses return a choices array where:
+   - `choices[0]`: Consolidated/consensus result
+   - `choices[1...n]`: Individual original results from each API call
 
 ## API Compatibility
 
@@ -161,10 +161,10 @@ The wrapper maintains full compatibility with the OpenAI client API. All paramet
 
 - `temperature`, `top_p`, `max_tokens`
 - `response_format`, `tools`, `tool_choice`
-- `stream` (note: streaming with consensus is not yet implemented)
+- `stream` (automatically disabled - all responses are non-streaming)
 - All other OpenAI parameters
 
 ## Limitations
 
-- Streaming is not yet supported with `n_consensus > 1`
+- Streaming is not supported (all requests return `KLLMsChatCompletion` objects)
 - The `n` parameter is ignored when using `n_consensus` to avoid conflicts
