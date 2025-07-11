@@ -1,6 +1,6 @@
-Metadata-Version: 2.4
+Metadata-Version: 2.1
 Name: k-llms
-Version: 0.0.53
+Version: 0.0.54
 Summary: Retab official python library
 Home-page: https://github.com/Retab-dev/retab
 Author: Retab
@@ -21,16 +21,6 @@ Requires-Dist: pydantic
 Requires-Dist: scipy
 Requires-Dist: retab
 Requires-Dist: Unidecode
-Dynamic: author
-Dynamic: author-email
-Dynamic: classifier
-Dynamic: description
-Dynamic: description-content-type
-Dynamic: home-page
-Dynamic: project-url
-Dynamic: requires-dist
-Dynamic: requires-python
-Dynamic: summary
 
 # k-LLMS
 
