@@ -1,7 +1,6 @@
 # Example usage of KLLMS OpenAI Wrapper - Complex Nested Models Test
 
 from k_llms import KLLMs
-from openai import OpenAI
 from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Union
 from datetime import datetime
@@ -13,7 +12,6 @@ dotenv.load_dotenv(".env")
 
 # Initialize clients
 kllms_client = KLLMs()
-openai_client = OpenAI()
 
 
 # Complex nested models for testing
@@ -78,3 +76,21 @@ class Company(BaseModel):
     annual_revenue: float
     stock_symbol: Optional[str] = None
     public_company: bool = False
+
+
+# Test 2: KLLMS consensus request
+print("\n=== Test 2: KLLMS Consensus Request ===")
+try:
+    consensus_response = kllms_client.chat.completions.create(
+        model="gpt-4.1-nano",
+        messages=[{"role": "user", "content": "What is the most efficient sorting algorithm for large datasets? Make the explanation very very short"}],
+        n=3,
+        temperature=1.0,
+    )
+    print("KLLMS consensus response:", consensus_response.choices[0].message.content)
+    print("KLLMS consensus response likelihoods:", consensus_response.likelihoods)
+
+    for i in range(len(consensus_response.choices)):
+        print(f"Choice {i}: {consensus_response.choices[i].message.content}")
+except Exception as e:
+    print(f"KLLMS consensus request failed: {e}")

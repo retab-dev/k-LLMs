@@ -74,7 +74,7 @@ class KLLMSTestSuite(unittest.TestCase):
     def tearDown(self):
         """Clean up after each test."""
         test_time = time.time() - self.start_time
-        self.test_results.append({"test": self._testMethodName, "duration": test_time, "status": "passed" if hasattr(self, "_outcome") and self._outcome.success else "failed"})
+        self.test_results.append({"test": self._testMethodName, "duration": test_time})
 
     def test_basic_chat_completion(self):
         """Test basic chat completion functionality."""
@@ -163,9 +163,9 @@ class KLLMSTestSuite(unittest.TestCase):
         high_temp_response = self.kllms_client.chat.completions.create(model=self.test_model, messages=[{"role": "user", "content": prompt}], n=3, temperature=1.5)
 
         # Calculate variance in likelihoods (extract numeric values)
-        low_temp_values = [v for v in low_temp_response.likelihoods.values() if isinstance(v, (int, float))]
-        high_temp_values = [v for v in high_temp_response.likelihoods.values() if isinstance(v, (int, float))]
-        
+        low_temp_values = [v for v in (low_temp_response.likelihoods.values() if low_temp_response.likelihoods else []) if isinstance(v, (int, float))]
+        high_temp_values = [v for v in (high_temp_response.likelihoods.values() if high_temp_response.likelihoods else []) if isinstance(v, (int, float))]
+
         low_temp_variance = max(low_temp_values) - min(low_temp_values) if low_temp_values else 0
         high_temp_variance = max(high_temp_values) - min(high_temp_values) if high_temp_values else 0
 
@@ -235,14 +235,14 @@ class KLLMSTestSuite(unittest.TestCase):
             {"role": "user", "content": "How do I create a list?"},
         ]
 
-        response = self.kllms_client.chat.completions.create(model=self.test_model, messages=messages, n=2)
+        response = self.kllms_client.chat.completions.create(model=self.test_model, messages=messages, n=2)  # type: ignore
 
         self.assertIsNotNone(response)
         self.assertGreater(len(response.choices), 0)
 
         # Response should mention lists or list creation
-        content = response.choices[0].message.content.lower()
-        self.assertTrue(any(keyword in content for keyword in ["list", "[]", "array", "append"]))
+        content = response.choices[0].message.content or ""
+        self.assertTrue(any(keyword in content.lower() for keyword in ["list", "[]", "array", "append"]))
 
     def test_performance_timing(self):
         """Test response time performance."""
@@ -259,9 +259,7 @@ class KLLMSTestSuite(unittest.TestCase):
 
     def test_consensus_quality_analysis(self):
         """Test consensus quality metrics."""
-        response = self.kllms_client.chat.completions.create(
-            model=self.test_model, messages=[{"role": "user", "content": "What is the capital of France?"}], n=5, temperature=0.2
-        )
+        response = self.kllms_client.chat.completions.create(model=self.test_model, messages=[{"role": "user", "content": "What is the capital of France?"}], n=5, temperature=0.2)
 
         self.assertIsNotNone(response.likelihoods)
         self.assertIsInstance(response.likelihoods, dict)
@@ -269,7 +267,7 @@ class KLLMSTestSuite(unittest.TestCase):
         self.assertEqual(len(response.choices), 6)
 
         # Calculate consensus metrics (extract numeric values from dict)
-        likelihood_values = [v for v in response.likelihoods.values() if isinstance(v, (int, float))]
+        likelihood_values = [v for v in (response.likelihoods.values() if response.likelihoods else []) if isinstance(v, (int, float))]
         if likelihood_values:
             mean_likelihood = sum(likelihood_values) / len(likelihood_values)
             variance = max(likelihood_values) - min(likelihood_values)
@@ -319,13 +317,8 @@ class KLLMSTestSuite(unittest.TestCase):
         print("=" * 50)
 
         total_tests = len(cls.test_results)
-        passed_tests = len([r for r in cls.test_results if r["status"] == "passed"])
-        failed_tests = total_tests - passed_tests
 
         print(f"Total Tests: {total_tests}")
-        print(f"Passed: {passed_tests}")
-        print(f"Failed: {failed_tests}")
-        print(f"Success Rate: {(passed_tests / total_tests) * 100:.1f}%")
 
         total_time = sum(r["duration"] for r in cls.test_results)
         avg_time = total_time / total_tests if total_tests > 0 else 0
@@ -335,8 +328,7 @@ class KLLMSTestSuite(unittest.TestCase):
 
         print("\nIndividual Test Times:")
         for result in cls.test_results:
-            status_symbol = "✓" if result["status"] == "passed" else "✗"
-            print(f"  {status_symbol} {result['test']}: {result['duration']:.2f}s")
+            print(f"  {result['test']}: {result['duration']:.2f}s")
 
         print("=" * 50)
 

@@ -80,12 +80,14 @@ class Company(BaseModel):
     public_company: bool = False
 
 
-# Test 2: KLLMS consensus request
-print("\n=== Test 2: KLLMS Consensus Request ===")
+# Test 1: KLLMS consensus request without response_format
+print("\n=== Test 1: KLLMS Consensus Request ===")
 consensus_response = kllms_client.chat.completions.create(
     model="gpt-4.1-nano", messages=[{"role": "user", "content": "What is the most efficient sorting algorithm for large datasets?"}], n=3, temperature=1.0
 )
+
 print("KLLMS consensus response:", consensus_response.choices[0].message.content)
+
 print("KLLMS consensus response likelihoods:", consensus_response.likelihoods)
 
 for i in range(len(consensus_response.choices)):
