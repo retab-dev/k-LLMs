@@ -1,7 +1,6 @@
 # Example usage of KLLMS OpenAI Wrapper - Complex Nested Models Test
 
 from k_llms import KLLMs
-from openai import OpenAI
 from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Union
 from datetime import datetime
@@ -13,7 +12,6 @@ dotenv.load_dotenv(".env")
 
 # Initialize clients
 kllms_client = KLLMs()
-openai_client = OpenAI()
 
 
 # Complex nested models for testing
@@ -80,19 +78,36 @@ class Company(BaseModel):
     public_company: bool = False
 
 
-# Test 2: KLLMS consensus request
-print("\n=== Test 2: KLLMS Consensus Request ===")
-try:
-    consensus_response = kllms_client.chat.completions.create(
-        model="gpt-4.1-nano",
-        messages=[{"role": "user", "content": "What is the most efficient sorting algorithm for large datasets? Make the explanation very very short"}],
-        n=3,
-        temperature=1.0,
-    )
-    print("KLLMS consensus response:", consensus_response.choices[0].message.content)
-    print("KLLMS consensus response likelihoods:", consensus_response.likelihoods)
+# Test 6: Error Handling and Edge Cases
+print("\n=== Test 6: Error Handling and Edge Cases ===")
 
-    for i in range(len(consensus_response.choices)):
-        print(f"Choice {i}: {consensus_response.choices[i].message.content}")
+# Test invalid model
+print("Testing invalid model...")
+try:
+    invalid_response = kllms_client.chat.completions.create(model="gpt-invalid-model", messages=[{"role": "user", "content": "Hello"}], n=2)
+    print("Invalid model test passed (unexpected)")
 except Exception as e:
-    print(f"KLLMS consensus request failed: {e}")
+    print(f"Invalid model test caught error (expected): {e}")
+
+# Test empty messages
+print("Testing empty messages...")
+try:
+    empty_response = kllms_client.chat.completions.create(model="gpt-4.1-nano", messages=[], n=2)
+    print("Empty messages test passed (unexpected)")
+except Exception as e:
+    print(f"Empty messages test caught error (expected): {e}")
+
+# Test extreme consensus values
+print("Testing extreme consensus values...")
+try:
+    extreme_consensus = kllms_client.chat.completions.create(
+        model="gpt-4.1-nano",
+        messages=[{"role": "user", "content": "Say hello"}],
+        n=50,  # Very high consensus
+    )
+    print("Extreme consensus test passed")
+    print(f"Total choices: {len(extreme_consensus.choices)} (1 consensus + 50 individual)")
+    print(f"Consensus choice content: {extreme_consensus.choices[0].message.content}")
+    print(f"Individual choices: {len(extreme_consensus.choices) - 1}")
+except Exception as e:
+    print(f"Extreme consensus test failed: {e}")

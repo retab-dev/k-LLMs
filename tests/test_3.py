@@ -1,7 +1,6 @@
 # Example usage of KLLMS OpenAI Wrapper - Complex Nested Models Test
 
 from k_llms import KLLMs
-from openai import OpenAI
 from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Union
 from datetime import datetime
@@ -13,7 +12,6 @@ dotenv.load_dotenv(".env")
 
 # Initialize clients
 kllms_client = KLLMs()
-openai_client = OpenAI()
 
 
 # Complex nested models for testing
