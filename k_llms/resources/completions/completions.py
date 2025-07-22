@@ -29,10 +29,14 @@ class Completions:
         presence_penalty: Optional[float] = None,
         stop: Optional[Union[str, List[str]]] = None,
         seed: Optional[int] = None,
+        response_format: Optional[type[ResponseFormatT]] = None,
         **kwargs: Any,
     ) -> KLLMsChatCompletion:
         # Always force stream=False since we don't support streaming
         kwargs.pop("stream", None)
+
+        if not response_format:
+            raise ValueError("response_format is required")
 
         # Build the call parameters
         call_params = {"messages": messages, "model": model, "stream": False}
@@ -134,6 +138,7 @@ class AsyncCompletions:
         *,
         messages: List[ChatCompletionMessageParam],
         model: str,
+        response_format: Optional[type[ResponseFormatT]] = None,
         n: Optional[int] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
@@ -146,6 +151,9 @@ class AsyncCompletions:
     ) -> KLLMsChatCompletion:
         # Always force stream=False since we don't support streaming
         kwargs.pop("stream", None)
+
+        if not response_format:
+            raise ValueError("response_format is required")
 
         # Build the call parameters
         call_params = {"messages": messages, "model": model, "stream": False}

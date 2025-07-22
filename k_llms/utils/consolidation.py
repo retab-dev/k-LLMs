@@ -52,7 +52,7 @@ def consolidate_chat_completions(
             if choice.message.content:
                 choice_contents.append(json.loads(choice.message.content))
 
-        consensus_content, likelihoods = consensus_values(choice_contents, consensus_settings, get_openai_embeddings_from_text, is_last_chunk=True)
+        consensus_content, likelihoods = consensus_values(choice_contents, consensus_settings, get_openai_embeddings_from_text)
 
         # Create consolidated message
         # Convert consensus content to JSON string for message content
@@ -102,7 +102,7 @@ def consolidate_chat_completions(
             if completion.choices and completion.choices[0].message.content:
                 completion_contents.append(json.loads(completion.choices[0].message.content))
 
-        consensus_content, likelihoods = consensus_values(completion_contents, consensus_settings, get_openai_embeddings_from_text, is_last_chunk=True)
+        consensus_content, likelihoods = consensus_values(completion_contents, consensus_settings, get_openai_embeddings_from_text)
 
         # Use the first completion as the base
         base_completion = completion_list[0]
@@ -178,7 +178,7 @@ async def async_consolidate_chat_completions(
             if choice.message.content:
                 async_choice_contents.append(json.loads(choice.message.content))
 
-        consensus_content, likelihoods = await async_consensus_values(async_choice_contents, consensus_settings, async_get_openai_embeddings_from_text, is_last_chunk=True)
+        consensus_content, likelihoods = await async_consensus_values(async_choice_contents, consensus_settings, async_get_openai_embeddings_from_text)
 
         # Create consolidated message
         # Convert consensus content to JSON string for message content
@@ -245,7 +245,7 @@ def consolidate_parsed_chat_completions(
         if choice.message.content:
             parsed_choice_contents.append(json.loads(choice.message.content))
 
-    consensus_content, likelihoods = consensus_values(parsed_choice_contents, consensus_settings, get_openai_embeddings_from_text, is_last_chunk=True)
+    consensus_content, likelihoods = consensus_values(parsed_choice_contents, consensus_settings, get_openai_embeddings_from_text)
 
     # Parse the consensus content if response_format is a BaseModel
     parsed_consensus = None
@@ -325,7 +325,7 @@ async def async_consolidate_parsed_chat_completions(
         if choice.message.content:
             async_parsed_choice_contents.append(json.loads(choice.message.content))
 
-    consensus_content, likelihoods = await async_consensus_values(async_parsed_choice_contents, consensus_settings, async_get_openai_embeddings_from_text, is_last_chunk=True)
+    consensus_content, likelihoods = await async_consensus_values(async_parsed_choice_contents, consensus_settings, async_get_openai_embeddings_from_text)
 
     # Parse the consensus content if response_format is a BaseModel
     parsed_consensus = None

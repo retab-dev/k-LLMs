@@ -300,9 +300,7 @@ def _build_reference_list(sim_cache: SimilarityCache, min_support_ratio: float =
             def dummy_embeddings_fn(strings):
                 return [[0.0] * 10 for _ in strings]  # Return dummy embeddings
 
-            new_group_repr_index, _ = consensus_as_primitive(
-                support_groups[best_group_repr_index], ConsensusSettings(), is_last_chunk=True, sync_get_openai_embeddings_from_text=dummy_embeddings_fn
-            )
+            new_group_repr_index, _ = consensus_as_primitive(support_groups[best_group_repr_index], ConsensusSettings(), sync_get_openai_embeddings_from_text=dummy_embeddings_fn)
             if new_group_repr_index != best_group_repr_index:
                 # logger.debug(f"Re-electing group representative for group {best_group_repr_index} -> {new_group_repr_index}")
                 support_groups[new_group_repr_index] = support_groups[best_group_repr_index]
@@ -924,15 +922,12 @@ def sanitize_value(v: str | bool) -> str:
 
 
 def voting_consensus(
-    values: list[str | bool | None], consensus_settings: ConsensusSettings, is_last_chunk: bool, verbose: bool = False, parent_valid_frac: float = 1.0
+    values: list[str | bool | None], consensus_settings: ConsensusSettings, verbose: bool = False, parent_valid_frac: float = 1.0
 ) -> tuple[str | bool | None, float]:
     """
     Vote-based approach: pick most common non-null value.
     Confidence = proportion among total (including None).
     """
-
-    if parent_valid_frac < consensus_settings.minimum_voters_threshold and not is_last_chunk:
-        return (None, 0.0)
 
     total_values = len(values)
 
@@ -1030,13 +1025,9 @@ I think you got the point.
 def consensus_as_primitive(
     values: list[Any],
     consensus_settings: ConsensusSettings,
-    is_last_chunk: bool,
     sync_get_openai_embeddings_from_text: SYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
     parent_valid_frac: float = 1.0,
 ) -> tuple[Any, float]:
-    if parent_valid_frac < consensus_settings.minimum_voters_threshold and not is_last_chunk:
-        return (None, 0.0)
-
     non_none_values = [v for v in values if v is not None]
     if len(non_none_values) == 0:
         return (None, parent_valid_frac)
@@ -1109,7 +1100,6 @@ def consensus_dict(
     dict_values: list[dict],
     consensus_settings: ConsensusSettings,
     sync_get_openai_embeddings_from_text: SYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
-    is_last_chunk: bool = False,
     parent_valid_frac: float = 1.0,
 ) -> tuple[dict, dict[str, float]]:
     """
@@ -1132,7 +1122,7 @@ def consensus_dict(
             # We skip reasoning and quote fields on consensus.
             continue
         else:
-            val, conf = consensus_values(sub_vals, consensus_settings, sync_get_openai_embeddings_from_text, is_last_chunk=is_last_chunk, parent_valid_frac=parent_valid_frac)
+            val, conf = consensus_values(sub_vals, consensus_settings, sync_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac)
             result[key] = val
             confs[key] = conf
 
@@ -1143,7 +1133,6 @@ def consensus_list(
     list_values: list[list[Any]],
     consensus_settings: ConsensusSettings,
     sync_get_openai_embeddings_from_text: SYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
-    is_last_chunk: bool = False,
     parent_valid_frac: float = 1.0,
 ) -> tuple[list[Any], list[float | dict]]:
     """
@@ -1172,7 +1161,7 @@ def consensus_list(
     confidences = []
     for i in range(maximum_len):
         items = [(model_list[i] if i < len(model_list) else None) for model_list in list_values]
-        val_i, conf_i = consensus_values(items, consensus_settings, sync_get_openai_embeddings_from_text, is_last_chunk=is_last_chunk, parent_valid_frac=parent_valid_frac)
+        val_i, conf_i = consensus_values(items, consensus_settings, sync_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac)
         final_list.append(val_i)
         confidences.append(conf_i)
 
@@ -1204,7 +1193,6 @@ def consensus_values(
     values: list[Any],
     consensus_settings: ConsensusSettings,
     sync_get_openai_embeddings_from_text: SYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
-    is_last_chunk: bool = False,
     parent_valid_frac: float = 1.0,
 ) -> tuple[Any, float | list[float | dict] | dict[str, float]]:
     """
@@ -1235,7 +1223,7 @@ def consensus_values(
         is_enum_like = all([len(v.split()) < 3 for v in values_as_strings])
         if is_enum_like:
             # Get the parent_valid_frac for these values (useful for intermediate chunks)
-            return voting_consensus(values, consensus_settings, is_last_chunk, parent_valid_frac=parent_valid_frac)
+            return voting_consensus(values, consensus_settings, parent_valid_frac=parent_valid_frac)
 
     # If we have a dictionary, recursively process it
     if isinstance(non_none_values[0], dict):
@@ -1244,7 +1232,7 @@ def consensus_values(
         total_valid = len(dicts_only)
         parent_valid_frac *= total_valid / len(values)
 
-        return consensus_dict(dicts_only, consensus_settings, sync_get_openai_embeddings_from_text, is_last_chunk, parent_valid_frac=parent_valid_frac)
+        return consensus_dict(dicts_only, consensus_settings, sync_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac)
 
     # If we have a list of values, recursively process them
     if isinstance(non_none_values[0], list):
@@ -1253,15 +1241,13 @@ def consensus_values(
         total_valid = len(lists_only)
         parent_valid_frac *= total_valid / len(values)
 
-        return consensus_list(lists_only, consensus_settings, sync_get_openai_embeddings_from_text, is_last_chunk, parent_valid_frac=parent_valid_frac)
+        return consensus_list(lists_only, consensus_settings, sync_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac)
 
     # 4) Otherwise => standard primitive consensus
     parent_valid_frac *= len(non_none_values) / len(values)
     if sync_get_openai_embeddings_from_text is None:
         raise ValueError("sync_get_openai_embeddings_from_text is required for primitive consensus")
-    consensus_result, confidence = consensus_as_primitive(
-        non_none_values, consensus_settings, is_last_chunk, sync_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac
-    )
+    consensus_result, confidence = consensus_as_primitive(non_none_values, consensus_settings, sync_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac)
     return consensus_result, confidence
 
 
@@ -1449,13 +1435,10 @@ async def async_generic_similarity(
 async def async_consensus_as_primitive(
     values: list[Any],
     consensus_settings: ConsensusSettings,
-    is_last_chunk: bool,
     async_get_openai_embeddings_from_text: ASYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
     parent_valid_frac: float = 1.0,
 ) -> tuple[Any, float]:
     """Async version of consensus_as_primitive"""
-    if parent_valid_frac < consensus_settings.minimum_voters_threshold and not is_last_chunk:
-        return (None, 0.0)
 
     non_none_values = [v for v in values if v is not None]
     if len(non_none_values) == 0:
@@ -1505,7 +1488,6 @@ async def async_consensus_dict(
     dict_values: list[dict],
     consensus_settings: ConsensusSettings,
     async_get_openai_embeddings_from_text: ASYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
-    is_last_chunk: bool = False,
     parent_valid_frac: float = 1.0,
 ) -> tuple[dict, dict[str, float]]:
     """
@@ -1529,9 +1511,7 @@ async def async_consensus_dict(
             # We skip reasoning and quote fields on consensus.
             continue
         else:
-            val, conf = await async_consensus_values(
-                sub_vals, consensus_settings, async_get_openai_embeddings_from_text, is_last_chunk=is_last_chunk, parent_valid_frac=parent_valid_frac
-            )
+            val, conf = await async_consensus_values(sub_vals, consensus_settings, async_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac)
             result[key] = val
             confs[key] = conf
 
@@ -1542,7 +1522,6 @@ async def async_consensus_list(
     list_values: list[list[Any]],
     consensus_settings: ConsensusSettings,
     async_get_openai_embeddings_from_text: ASYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
-    is_last_chunk: bool = False,
     parent_valid_frac: float = 1.0,
 ) -> tuple[list[Any], list[float | dict]]:
     """
@@ -1572,9 +1551,7 @@ async def async_consensus_list(
     confidences = []
     for i in range(maximum_len):
         items = [(model_list[i] if i < len(model_list) else None) for model_list in list_values]
-        val_i, conf_i = await async_consensus_values(
-            items, consensus_settings, async_get_openai_embeddings_from_text, is_last_chunk=is_last_chunk, parent_valid_frac=parent_valid_frac
-        )
+        val_i, conf_i = await async_consensus_values(items, consensus_settings, async_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac)
         final_list.append(val_i)
         confidences.append(conf_i)
 
@@ -1585,7 +1562,6 @@ async def async_consensus_values(
     values: list[Any],
     consensus_settings: ConsensusSettings,
     async_get_openai_embeddings_from_text: ASYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
-    is_last_chunk: bool = False,
     parent_valid_frac: float = 1.0,
 ) -> tuple[Any, float | list[float | dict] | dict[str, float]]:
     """
@@ -1617,7 +1593,7 @@ async def async_consensus_values(
         is_enum_like = all([len(v.split()) < 3 for v in values_as_strings])
         if is_enum_like:
             # Get the parent_valid_frac for these values (useful for intermediate chunks)
-            return voting_consensus(values, consensus_settings, is_last_chunk, parent_valid_frac=parent_valid_frac)
+            return voting_consensus(values, consensus_settings, parent_valid_frac=parent_valid_frac)
 
     # If we have a dictionary, recursively process it
     if isinstance(non_none_values[0], dict):
@@ -1626,7 +1602,7 @@ async def async_consensus_values(
         total_valid = len(dicts_only)
         parent_valid_frac *= total_valid / len(values)
 
-        return await async_consensus_dict(dicts_only, consensus_settings, async_get_openai_embeddings_from_text, is_last_chunk, parent_valid_frac=parent_valid_frac)
+        return await async_consensus_dict(dicts_only, consensus_settings, async_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac)
 
     # If we have a list of values, recursively process them
     if isinstance(non_none_values[0], list):
@@ -1635,14 +1611,14 @@ async def async_consensus_values(
         total_valid = len(lists_only)
         parent_valid_frac *= total_valid / len(values)
 
-        return await async_consensus_list(lists_only, consensus_settings, async_get_openai_embeddings_from_text, is_last_chunk, parent_valid_frac=parent_valid_frac)
+        return await async_consensus_list(lists_only, consensus_settings, async_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac)
 
     # 4) Otherwise => standard primitive consensus
     parent_valid_frac *= len(non_none_values) / len(values)
     if async_get_openai_embeddings_from_text is None:
         raise ValueError("async_get_openai_embeddings_from_text is required for primitive consensus")
     consensus_result, confidence = await async_consensus_as_primitive(
-        non_none_values, consensus_settings, is_last_chunk, async_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac
+        non_none_values, consensus_settings, async_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac
     )
     return consensus_result, confidence
 
@@ -1971,7 +1947,7 @@ async def _async_build_reference_list(async_sim_cache: AsyncSimilarityCache, min
                 return [[0.0] * 10 for _ in strings]  # Return dummy embeddings
 
             new_group_repr_index, _ = await async_consensus_as_primitive(
-                support_groups[best_group_repr_index], ConsensusSettings(), is_last_chunk=True, async_get_openai_embeddings_from_text=dummy_embeddings_fn
+                support_groups[best_group_repr_index], ConsensusSettings(), async_get_openai_embeddings_from_text=dummy_embeddings_fn
             )
             if new_group_repr_index != best_group_repr_index:
                 support_groups[new_group_repr_index] = support_groups[best_group_repr_index]

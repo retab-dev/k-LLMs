@@ -260,42 +260,6 @@ try:
 except Exception as e:
     print(f"Extreme consensus test failed: {e}")
 
-# Test 7: Different Models and Parameters
-print("\n=== Test 7: Different Models and Parameters ===")
-
-models_to_test = ["gpt-4.1-nano", "gpt-4o-mini", "gpt-3.5-turbo"]
-test_prompt = "Explain quantum computing in one sentence."
-
-for model in models_to_test:
-    print(f"Testing model: {model}")
-    try:
-        model_response = kllms_client.chat.completions.create(model=model, messages=[{"role": "user", "content": test_prompt}], n=3, temperature=0.7, max_tokens=100)
-        content = model_response.choices[0].message.content
-        print(f"  Success: {content[:100] if content else 'No content'}...")
-        print(f"  Likelihoods: {model_response.likelihoods}")
-    except Exception as e:
-        print(f"  Failed: {e}")
-
-# Test 8: Temperature and Creativity Variations
-print("\n=== Test 8: Temperature and Creativity Variations ===")
-
-creative_prompt = "Write a creative opening line for a sci-fi novel."
-temperatures = [0.0, 0.5, 1.0, 1.5, 2.0]
-
-for temp in temperatures:
-    print(f"Testing temperature: {temp}")
-    try:
-        temp_response = kllms_client.chat.completions.create(model="gpt-4.1-nano", messages=[{"role": "user", "content": creative_prompt}], n=3, temperature=temp)
-        content = temp_response.choices[0].message.content
-        print(f"  Response: {content or 'No content'}")
-        if temp_response.likelihoods:
-            variance = max(temp_response.likelihoods) - min(temp_response.likelihoods)
-            print(f"  Consensus variance: {variance:.3f}")
-        else:
-            print("  Consensus variance: No likelihoods available")
-    except Exception as e:
-        print(f"  Failed: {e}")
-
 # Test 9: Simple Data Types with Consensus
 print("\n=== Test 9: Simple Data Types with Consensus ===")
 
@@ -429,9 +393,7 @@ consensus_result = time_request(
 # Time structured output
 structured_result = time_request(
     "KLLMS structured consensus (n=3)",
-    lambda: kllms_client.chat.completions.parse(
-        model="gpt-4.1-nano", messages=[{"role": "user", "content": "Generate a simple employee record"}], response_format=Employee, n=3
-    ),
+    lambda: kllms_client.chat.completions.parse(model="gpt-4.1-nano", messages=[{"role": "user", "content": "Generate a simple employee record"}], response_format=Employee, n=3),
 )
 
 # Test 12: Edge Cases in Structured Data
@@ -497,9 +459,7 @@ scenarios = [("Low temperature (should have high consensus)", 0.1), ("High tempe
 
 for desc, temp in scenarios:
     try:
-        test_response = kllms_client.chat.completions.create(
-            model="gpt-4.1-nano", messages=[{"role": "user", "content": "What is the capital of France?"}], n=5, temperature=temp
-        )
+        test_response = kllms_client.chat.completions.create(model="gpt-4.1-nano", messages=[{"role": "user", "content": "What is the capital of France?"}], n=5, temperature=temp)
         analyze_consensus_quality(test_response, desc)
     except Exception as e:
         print(f"Consensus analysis failed for {desc}: {e}")
