@@ -63,6 +63,8 @@ def consolidate_chat_completions(
     completions: Union[List[ChatCompletion], ChatCompletion],
     get_openai_embeddings_from_text: SYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
     consensus_settings: ConsensusSettings = ConsensusSettings(),
+    api_key: str | None = None,
+    base_url: str | None = None,
 ) -> KLLMsChatCompletion:
     """
     Consolidate multiple ChatCompletion objects or a single ChatCompletion with multiple choices into a single KLLMsChatCompletion with consensus.
@@ -90,7 +92,13 @@ def consolidate_chat_completions(
             if choice.message.content:
                 choice_contents.append(_safe_parse_content(choice.message.content))
 
-        consensus_content, likelihoods = consensus_values(choice_contents, consensus_settings, get_openai_embeddings_from_text)
+        consensus_content, likelihoods = consensus_values(
+            choice_contents,
+            consensus_settings,
+            get_openai_embeddings_from_text,
+            api_key=api_key,
+            base_url=base_url,
+        )
 
         # Create consolidated message
         # Convert consensus content to JSON string for message content
@@ -140,7 +148,13 @@ def consolidate_chat_completions(
             if completion.choices and completion.choices[0].message.content:
                 completion_contents.append(_safe_parse_content(completion.choices[0].message.content))
 
-        consensus_content, likelihoods = consensus_values(completion_contents, consensus_settings, get_openai_embeddings_from_text)
+        consensus_content, likelihoods = consensus_values(
+            completion_contents,
+            consensus_settings,
+            get_openai_embeddings_from_text,
+            api_key=api_key,
+            base_url=base_url,
+        )
 
         # Use the first completion as the base
         base_completion = completion_list[0]
@@ -186,6 +200,8 @@ async def async_consolidate_chat_completions(
     completion: ChatCompletion,
     async_get_openai_embeddings_from_text: ASYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
     consensus_settings: ConsensusSettings = ConsensusSettings(),
+    api_key: str | None = None,
+    base_url: str | None = None,
 ) -> KLLMsChatCompletion:
     """
     Async version of consolidate_chat_completions.
@@ -216,7 +232,13 @@ async def async_consolidate_chat_completions(
             if choice.message.content:
                 async_choice_contents.append(_safe_parse_content(choice.message.content))
 
-        consensus_content, likelihoods = await async_consensus_values(async_choice_contents, consensus_settings, async_get_openai_embeddings_from_text)
+        consensus_content, likelihoods = await async_consensus_values(
+            async_choice_contents,
+            consensus_settings,
+            async_get_openai_embeddings_from_text,
+            api_key=api_key,
+            base_url=base_url,
+        )
 
         # Create consolidated message
         # Convert consensus content to JSON string for message content
@@ -257,6 +279,8 @@ def consolidate_parsed_chat_completions(
     get_openai_embeddings_from_text: SYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
     consensus_settings: ConsensusSettings = ConsensusSettings(),
     response_format: Optional[type[ResponseFormatT]] = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
 ) -> KLLMsParsedChatCompletion:
     """
     Consolidate multiple choices in a ParsedChatCompletion object into a single KLLMsParsedChatCompletion with consensus.
@@ -283,7 +307,13 @@ def consolidate_parsed_chat_completions(
         if choice.message.content:
             parsed_choice_contents.append(_safe_parse_content(choice.message.content))
 
-    consensus_content, likelihoods = consensus_values(parsed_choice_contents, consensus_settings, get_openai_embeddings_from_text)
+    consensus_content, likelihoods = consensus_values(
+        parsed_choice_contents,
+        consensus_settings,
+        get_openai_embeddings_from_text,
+        api_key=api_key,
+        base_url=base_url,
+    )
 
     # Parse the consensus content if response_format is a BaseModel
     parsed_consensus = None
@@ -336,6 +366,8 @@ async def async_consolidate_parsed_chat_completions(
     async_get_openai_embeddings_from_text: ASYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
     consensus_settings: ConsensusSettings = ConsensusSettings(),
     response_format: Optional[type[ResponseFormatT]] = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
 ) -> KLLMsParsedChatCompletion:
     """
     Async version of consolidate_parsed_chat_completions.
@@ -363,7 +395,13 @@ async def async_consolidate_parsed_chat_completions(
         if choice.message.content:
             async_parsed_choice_contents.append(_safe_parse_content(choice.message.content))
 
-    consensus_content, likelihoods = await async_consensus_values(async_parsed_choice_contents, consensus_settings, async_get_openai_embeddings_from_text)
+    consensus_content, likelihoods = await async_consensus_values(
+        async_parsed_choice_contents,
+        consensus_settings,
+        async_get_openai_embeddings_from_text,
+        api_key=api_key,
+        base_url=base_url,
+    )
 
     # Parse the consensus content if response_format is a BaseModel
     parsed_consensus = None

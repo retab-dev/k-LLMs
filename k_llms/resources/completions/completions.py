@@ -69,11 +69,21 @@ class Completions:
             call_params["n"] = n
             completion = self._wrapper.client.chat.completions.create(**call_params)
             # The completion will have multiple choices, consolidate them
-            return consolidate_chat_completions(completion, embeddings_wrapper)
+            return consolidate_chat_completions(
+                completion,
+                embeddings_wrapper,
+                api_key=self._wrapper.client.api_key,
+                base_url=self._wrapper.client.base_url,
+            )
         else:
             # Single request - wrap in KLLMsChatCompletion
             completion = self._wrapper.client.chat.completions.create(**call_params)
-            return consolidate_chat_completions(completion, embeddings_wrapper)
+            return consolidate_chat_completions(
+                completion,
+                embeddings_wrapper,
+                api_key=self._wrapper.client.api_key,
+                base_url=self._wrapper.client.base_url,
+            )
 
     def parse(
         self,
@@ -122,11 +132,23 @@ class Completions:
             call_params["n"] = n
             completion = self._wrapper.client.beta.chat.completions.parse(**call_params)
             # The completion will have multiple choices, consolidate them
-            return consolidate_parsed_chat_completions(completion, embeddings_wrapper, response_format=response_format)
+            return consolidate_parsed_chat_completions(
+                completion,
+                embeddings_wrapper,
+                response_format=response_format,
+                api_key=self._wrapper.client.api_key,
+                base_url=self._wrapper.client.base_url,
+            )
         else:
             # Single request - wrap in KLLMsParsedChatCompletion
             completion = self._wrapper.client.beta.chat.completions.parse(**call_params)
-            return consolidate_parsed_chat_completions(completion, embeddings_wrapper, response_format=response_format)
+            return consolidate_parsed_chat_completions(
+                completion,
+                embeddings_wrapper,
+                response_format=response_format,
+                api_key=self._wrapper.client.api_key,
+                base_url=self._wrapper.client.base_url,
+            )
 
 
 class AsyncCompletions:
@@ -189,11 +211,21 @@ class AsyncCompletions:
             call_params["n"] = n
             completion = await self._wrapper.client.chat.completions.create(**call_params)
             # The completion will have multiple choices, consolidate them
-            return await async_consolidate_chat_completions(completion, embeddings_wrapper)
+            return await async_consolidate_chat_completions(
+                completion,
+                embeddings_wrapper,
+                api_key=self._wrapper.client.api_key,
+                base_url=self._wrapper.client.base_url,
+            )
         else:
             # Single request - wrap in KLLMsChatCompletion
             completion = await self._wrapper.client.chat.completions.create(**call_params)
-            return await async_consolidate_chat_completions(completion, embeddings_wrapper)
+            return await async_consolidate_chat_completions(
+                completion,
+                embeddings_wrapper,
+                api_key=self._wrapper.client.api_key,
+                base_url=self._wrapper.client.base_url,
+            )
 
     async def parse(
         self,
@@ -245,8 +277,20 @@ class AsyncCompletions:
             call_params["n"] = n
             completion = await self._wrapper.client.beta.chat.completions.parse(**call_params)
             # The completion will have multiple choices, consolidate them
-            return await async_consolidate_parsed_chat_completions(completion, embeddings_wrapper, response_format=response_format)
+            return await async_consolidate_parsed_chat_completions(
+                completion,
+                embeddings_wrapper,
+                response_format=response_format,
+                api_key=self._wrapper.client.api_key,
+                base_url=self._wrapper.client.base_url,
+            )
         else:
             # Single request - wrap in KLLMsParsedChatCompletion
             completion = await self._wrapper.client.beta.chat.completions.parse(**call_params)
-            return await async_consolidate_parsed_chat_completions(completion, embeddings_wrapper, response_format=response_format)
+            return await async_consolidate_parsed_chat_completions(
+                completion,
+                embeddings_wrapper,
+                response_format=response_format,
+                api_key=self._wrapper.client.api_key,
+                base_url=self._wrapper.client.base_url,
+            )
