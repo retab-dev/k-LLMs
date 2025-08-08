@@ -973,8 +973,30 @@ def voting_consensus(
 ###############################################################################
 # 6) Non-enum primitives (or treated as primitives) => pairwise similarity "center"
 ###############################################################################
-def string_consensus_llm(values: list[str]) -> str:
-    with OpenAI(api_key="AIzaSyAkHc8uVjIUMlfaTACfcOLYeV7F9PFOtak", base_url="https://generativelanguage.googleapis.com/v1beta/openai/") as client:
+def string_consensus_llm(values: list[str], client: OpenAI | None = None) -> str:
+    """Build a consensus string using an OpenAI client.
+
+    If no client is provided, a default one will be created using environment
+    configuration. The caller may pass an existing client to reuse their
+    configured API key and base URL.
+    """
+
+    if client is None:
+        client_context = OpenAI()
+    else:
+        client_context = client
+
+    # The OpenAI client implements the context manager protocol; when an
+    # existing client is supplied we don't want to close it after the call, so
+    # we only enter the context manager if we created a new client.
+    if client is None:
+        cm = client_context
+    else:
+        from contextlib import nullcontext
+
+        cm = nullcontext(client_context)
+
+    with cm as client:
         system_prompt = """
 You are a helpful assistant that builds a consensus string from a list of strings.
 ## Context
@@ -1013,8 +1035,11 @@ I think you got the point.
 """
         values_json_dumped = [json.dumps(v) for v in values]
         response = client.chat.completions.create(
-            model="gemini-2.0-flash-lite",
-            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": f"Input: {values_json_dumped}\nOutput:"}],
+            model="gpt-4.1-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Input: {values_json_dumped}\nOutput:"},
+            ],
         )
         if response.choices[0].message.content is None:
             return "Unknown"
@@ -1027,6 +1052,7 @@ def consensus_as_primitive(
     consensus_settings: ConsensusSettings,
     sync_get_openai_embeddings_from_text: SYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
     parent_valid_frac: float = 1.0,
+    client: OpenAI | None = None,
 ) -> tuple[Any, float]:
     non_none_values = [v for v in values if v is not None]
     if len(non_none_values) == 0:
@@ -1038,7 +1064,7 @@ def consensus_as_primitive(
     first_val_type = type(non_none_values[0])
     if first_val_type is str and consensus_settings.string_consensus_method == "llm-consensus" and consensus_settings.string_similarity_method == "embeddings":
         # Feed an LLM with the values and ask it to build the consensus string
-        consensus_string = string_consensus_llm(non_none_values)
+        consensus_string = string_consensus_llm(non_none_values, client=client)
         # Compute the similarity between the consensus string and the values
         similarities = [generic_similarity(consensus_string, v, consensus_settings.string_similarity_method, sync_get_openai_embeddings_from_text) for v in non_none_values]
         confidence = float(np.nanmean(similarities))
@@ -1101,6 +1127,7 @@ def consensus_dict(
     consensus_settings: ConsensusSettings,
     sync_get_openai_embeddings_from_text: SYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
     parent_valid_frac: float = 1.0,
+    client: OpenAI | None = None,
 ) -> tuple[dict, dict[str, float]]:
     """
     Returns (merged_dict, confidence_dict).
@@ -1122,7 +1149,13 @@ def consensus_dict(
             # We skip reasoning and quote fields on consensus.
             continue
         else:
-            val, conf = consensus_values(sub_vals, consensus_settings, sync_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac)
+            val, conf = consensus_values(
+                sub_vals,
+                consensus_settings,
+                sync_get_openai_embeddings_from_text,
+                parent_valid_frac=parent_valid_frac,
+                client=client,
+            )
             result[key] = val
             confs[key] = conf
 
@@ -1134,6 +1167,7 @@ def consensus_list(
     consensus_settings: ConsensusSettings,
     sync_get_openai_embeddings_from_text: SYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
     parent_valid_frac: float = 1.0,
+    client: OpenAI | None = None,
 ) -> tuple[list[Any], list[float | dict]]:
     """
     - We do element-wise merging, calling consensus_value on each index.
@@ -1161,7 +1195,13 @@ def consensus_list(
     confidences = []
     for i in range(maximum_len):
         items = [(model_list[i] if i < len(model_list) else None) for model_list in list_values]
-        val_i, conf_i = consensus_values(items, consensus_settings, sync_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac)
+        val_i, conf_i = consensus_values(
+            items,
+            consensus_settings,
+            sync_get_openai_embeddings_from_text,
+            parent_valid_frac=parent_valid_frac,
+            client=client,
+        )
         final_list.append(val_i)
         confidences.append(conf_i)
 
@@ -1194,6 +1234,7 @@ def consensus_values(
     consensus_settings: ConsensusSettings,
     sync_get_openai_embeddings_from_text: SYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
     parent_valid_frac: float = 1.0,
+    client: OpenAI | None = None,
 ) -> tuple[Any, float | list[float | dict] | dict[str, float]]:
     """
     Decide which consensus function to call:
@@ -1232,7 +1273,13 @@ def consensus_values(
         total_valid = len(dicts_only)
         parent_valid_frac *= total_valid / len(values)
 
-        return consensus_dict(dicts_only, consensus_settings, sync_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac)
+        return consensus_dict(
+            dicts_only,
+            consensus_settings,
+            sync_get_openai_embeddings_from_text,
+            parent_valid_frac=parent_valid_frac,
+            client=client,
+        )
 
     # If we have a list of values, recursively process them
     if isinstance(non_none_values[0], list):
@@ -1241,13 +1288,25 @@ def consensus_values(
         total_valid = len(lists_only)
         parent_valid_frac *= total_valid / len(values)
 
-        return consensus_list(lists_only, consensus_settings, sync_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac)
+        return consensus_list(
+            lists_only,
+            consensus_settings,
+            sync_get_openai_embeddings_from_text,
+            parent_valid_frac=parent_valid_frac,
+            client=client,
+        )
 
     # 4) Otherwise => standard primitive consensus
     parent_valid_frac *= len(non_none_values) / len(values)
     if sync_get_openai_embeddings_from_text is None:
         raise ValueError("sync_get_openai_embeddings_from_text is required for primitive consensus")
-    consensus_result, confidence = consensus_as_primitive(non_none_values, consensus_settings, sync_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac)
+    consensus_result, confidence = consensus_as_primitive(
+        non_none_values,
+        consensus_settings,
+        sync_get_openai_embeddings_from_text,
+        parent_valid_frac=parent_valid_frac,
+        client=client,
+    )
     return consensus_result, confidence
 
 
@@ -1437,6 +1496,7 @@ async def async_consensus_as_primitive(
     consensus_settings: ConsensusSettings,
     async_get_openai_embeddings_from_text: ASYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
     parent_valid_frac: float = 1.0,
+    client: OpenAI | None = None,
 ) -> tuple[Any, float]:
     """Async version of consensus_as_primitive"""
 
@@ -1450,7 +1510,7 @@ async def async_consensus_as_primitive(
     first_val_type = type(non_none_values[0])
     if first_val_type is str and consensus_settings.string_consensus_method == "llm-consensus" and consensus_settings.string_similarity_method == "embeddings":
         # Feed an LLM with the values and ask it to build the consensus string
-        consensus_string = string_consensus_llm(non_none_values)
+        consensus_string = string_consensus_llm(non_none_values, client=client)
         # Compute the similarity between the consensus string and the values
         similarities = []
         for v in non_none_values:
@@ -1489,6 +1549,7 @@ async def async_consensus_dict(
     consensus_settings: ConsensusSettings,
     async_get_openai_embeddings_from_text: ASYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
     parent_valid_frac: float = 1.0,
+    client: OpenAI | None = None,
 ) -> tuple[dict, dict[str, float]]:
     """
     Async version of consensus_dict.
@@ -1511,7 +1572,13 @@ async def async_consensus_dict(
             # We skip reasoning and quote fields on consensus.
             continue
         else:
-            val, conf = await async_consensus_values(sub_vals, consensus_settings, async_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac)
+            val, conf = await async_consensus_values(
+                sub_vals,
+                consensus_settings,
+                async_get_openai_embeddings_from_text,
+                parent_valid_frac=parent_valid_frac,
+                client=client,
+            )
             result[key] = val
             confs[key] = conf
 
@@ -1523,6 +1590,7 @@ async def async_consensus_list(
     consensus_settings: ConsensusSettings,
     async_get_openai_embeddings_from_text: ASYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
     parent_valid_frac: float = 1.0,
+    client: OpenAI | None = None,
 ) -> tuple[list[Any], list[float | dict]]:
     """
     Async version of consensus_list.
@@ -1551,7 +1619,13 @@ async def async_consensus_list(
     confidences = []
     for i in range(maximum_len):
         items = [(model_list[i] if i < len(model_list) else None) for model_list in list_values]
-        val_i, conf_i = await async_consensus_values(items, consensus_settings, async_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac)
+        val_i, conf_i = await async_consensus_values(
+            items,
+            consensus_settings,
+            async_get_openai_embeddings_from_text,
+            parent_valid_frac=parent_valid_frac,
+            client=client,
+        )
         final_list.append(val_i)
         confidences.append(conf_i)
 
@@ -1563,6 +1637,7 @@ async def async_consensus_values(
     consensus_settings: ConsensusSettings,
     async_get_openai_embeddings_from_text: ASYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
     parent_valid_frac: float = 1.0,
+    client: OpenAI | None = None,
 ) -> tuple[Any, float | list[float | dict] | dict[str, float]]:
     """
     Async version of consensus_values.
@@ -1602,7 +1677,13 @@ async def async_consensus_values(
         total_valid = len(dicts_only)
         parent_valid_frac *= total_valid / len(values)
 
-        return await async_consensus_dict(dicts_only, consensus_settings, async_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac)
+        return await async_consensus_dict(
+            dicts_only,
+            consensus_settings,
+            async_get_openai_embeddings_from_text,
+            parent_valid_frac=parent_valid_frac,
+            client=client,
+        )
 
     # If we have a list of values, recursively process them
     if isinstance(non_none_values[0], list):
@@ -1611,14 +1692,24 @@ async def async_consensus_values(
         total_valid = len(lists_only)
         parent_valid_frac *= total_valid / len(values)
 
-        return await async_consensus_list(lists_only, consensus_settings, async_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac)
+        return await async_consensus_list(
+            lists_only,
+            consensus_settings,
+            async_get_openai_embeddings_from_text,
+            parent_valid_frac=parent_valid_frac,
+            client=client,
+        )
 
     # 4) Otherwise => standard primitive consensus
     parent_valid_frac *= len(non_none_values) / len(values)
     if async_get_openai_embeddings_from_text is None:
         raise ValueError("async_get_openai_embeddings_from_text is required for primitive consensus")
     consensus_result, confidence = await async_consensus_as_primitive(
-        non_none_values, consensus_settings, async_get_openai_embeddings_from_text, parent_valid_frac=parent_valid_frac
+        non_none_values,
+        consensus_settings,
+        async_get_openai_embeddings_from_text,
+        parent_valid_frac=parent_valid_frac,
+        client=client,
     )
     return consensus_result, confidence
 
