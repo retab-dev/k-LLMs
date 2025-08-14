@@ -17,8 +17,8 @@ from openai import NOT_GIVEN, NotGiven, OpenAI
 from openai.types.completion_usage import CompletionTokensDetails, CompletionUsage, PromptTokensDetails
 from pydantic import BaseModel, computed_field
 from scipy.optimize import linear_sum_assignment  # type: ignore
-from retab.utils.json_schema import filter_auxiliary_fields, flatten_dict, unflatten_dict
-from retab.types.documents.extractions import RetabParsedChatCompletion, RetabParsedChatCompletionChunk, RetabParsedChoiceChunk, RetabParsedChoiceDeltaChunk
+from main_server.libs.document_analysis.functions.json_schema  import filter_auxiliary_fields, flatten_dict, unflatten_dict
+from retab.types.documents.extract import RetabParsedChatCompletion, RetabParsedChatCompletionChunk, RetabParsedChoiceChunk, RetabParsedChoiceDeltaChunk
 from unidecode import unidecode
 
 NumericalPrimitive = int | float
