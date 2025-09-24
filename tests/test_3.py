@@ -95,7 +95,13 @@ Create a fictional tech company with the following details:
 """
 
 try:
-    parsed_result = kllms_client.chat.completions.parse(model="gpt-4.1-nano", messages=[{"role": "user", "content": complex_prompt}], response_format=Company, n=2)
+    parsed_result = kllms_client.chat.completions.parse(
+        model="gpt-4.1-nano",
+        messages=[{"role": "user", "content": complex_prompt}], 
+        response_format=Company, 
+        n=2
+        )
+        
     print("Parsed result (Retab):")
     if parsed_result.choices[0].message.parsed:
         print(json.dumps(parsed_result.choices[0].message.parsed.model_dump(), indent=2))
