@@ -1,8 +1,8 @@
 Metadata-Version: 2.4
 Name: k-llms
-Version: 0.0.55
+Version: 0.0.56
 Summary: Retab official python library
-Home-page: https://github.com/Retab-dev/retab
+Home-page: https://github.com/retab-dev/retab
 Author: Retab
 Author-email: contact@retab.com
 Project-URL: Team website, https://retab.com
