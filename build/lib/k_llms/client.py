@@ -16,12 +16,14 @@ class BaseOpenAIWrapper:
     def __init__(
         self,
         api_key: Optional[str] = None,
+        organization: Optional[str] = None,
         base_url: Optional[str] = None,
         timeout: Optional[float] = None,
         max_retries: int = 2,
         **kwargs: Any,
     ):
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
+        self.organization = organization
         self.base_url = base_url
         self.timeout = timeout
         self.max_retries = max_retries
@@ -32,7 +34,7 @@ class KLLMs(BaseOpenAIWrapper):
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
         self._client = OpenAI(
-            api_key=self.api_key, base_url=self.base_url, timeout=self.timeout, max_retries=self.max_retries, **self._extra_kwargs
+            api_key=self.api_key, organization=self.organization, base_url=self.base_url, timeout=self.timeout, max_retries=self.max_retries, **self._extra_kwargs
         )
         self.chat = Chat(self)
         self.get_embeddings: Callable[[list[str], str, int, bool], list[list[float]]] = lambda texts, model, batch_size, verbose: get_embeddings(
@@ -48,7 +50,7 @@ class AsyncKLLMs(BaseOpenAIWrapper):
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
         self._client = AsyncOpenAI(
-            api_key=self.api_key, base_url=self.base_url, timeout=self.timeout, max_retries=self.max_retries, **self._extra_kwargs
+            api_key=self.api_key, organization=self.organization, base_url=self.base_url, timeout=self.timeout, max_retries=self.max_retries, **self._extra_kwargs
         )
         self.chat = AsyncChat(self)
         self.get_embeddings: Callable[[list[str], str, int, bool], Awaitable[list[list[float]]]] = lambda texts, model, batch_size, verbose: async_get_embeddings(
