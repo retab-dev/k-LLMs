@@ -1,2 +1,5 @@
 .env.*
-.env
+.
+# Ne jamais suivre les fichiers Python compilés
+__pycache__/
+*.pyc
