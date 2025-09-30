@@ -1,0 +1,12 @@
+{
+  "meta": {"source": "M2", "version": 2},
+  "items": [
+    {"id": "X2", "name": "BETA", "qty": 2},
+    {"id": "X3", "name": "Gamma", "qty": 7},
+    {"id": "X1", "name": "ALPHA", "qty": 4, "price": 10.0}
+  ],
+  "notes": ["ok", "warn"],
+  "extra": {"flag": true}
+}
+
+

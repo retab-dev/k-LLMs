@@ -1,0 +1,11 @@
+{
+  "meta": {"source": "M3", "version": 1},
+  "items": [
+    {"id": "X4", "qty": 8, "name": "Delta"},
+    {"id": "X3", "name": "GAMMA"}
+  ],
+  "notes": ["todo"],
+  "extra": {"flag": false, "comment": "later"}
+}
+
+

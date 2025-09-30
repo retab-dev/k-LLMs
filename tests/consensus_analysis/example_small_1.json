@@ -1,0 +1,9 @@
+{
+  "meta": {"source": "A", "version": 1},
+  "items": [
+    {"id": "A1", "name": "Apple", "qty": 10},
+    {"id": "B2", "name": "Banana", "qty": 5}
+  ]
+}
+
+
