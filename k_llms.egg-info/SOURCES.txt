@@ -17,7 +17,10 @@ k_llms/types/parsed.py
 k_llms/utils/__init__.py
 k_llms/utils/consensus_utils.py
 k_llms/utils/consolidation.py
+k_llms/utils/json_output_v3_recursion_1.py
+k_llms/utils/json_output_v4.py
 k_llms/utils/majority_sorting.py
+k_llms/utils/othmane_alignment.py
 tests/test_1.py
 tests/test_2.py
 tests/test_3.py
@@ -28,4 +31,6 @@ tests/test_7.py
 tests/test_basis.py
 tests/test_kllms_comprehensive.py
 tests/test_likelihoods.py
+tests/test_othman_real.py
+tests/test_othman_simple.py
 tests/tests.py

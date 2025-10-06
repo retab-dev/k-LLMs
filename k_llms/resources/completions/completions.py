@@ -1,6 +1,8 @@
 from typing import TYPE_CHECKING, Any, List, Optional, Union
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from openai.lib._parsing import ResponseFormatT
+from openai.types.shared_params.response_format_json_object import ResponseFormatJSONObject
+from openai.types.shared_params.response_format_json_schema import ResponseFormatJSONSchema
 
 from ...utils.consolidation import consolidate_chat_completions, consolidate_parsed_chat_completions
 from ...types.completions import KLLMsChatCompletion
@@ -27,7 +29,7 @@ class Completions:
         presence_penalty: Optional[float] = None,
         stop: Optional[Union[str, List[str]]] = None,
         seed: Optional[int] = None,
-        response_format: Optional[type[ResponseFormatT]] = None,
+        response_format: Optional[Union[type[ResponseFormatT], ResponseFormatJSONSchema, ResponseFormatJSONObject]] = None,
         **kwargs: Any,
     ) -> KLLMsChatCompletion:
         # Always force stream=False since we don't support streaming
@@ -54,6 +56,9 @@ class Completions:
             call_params["stop"] = stop
         if seed is not None:
             call_params["seed"] = seed
+
+        if response_format is not None:
+            call_params["response_format"] = response_format
 
         # Add any additional kwargs
         call_params.update(kwargs)
@@ -154,7 +159,7 @@ class AsyncCompletions:
         *,
         messages: List[ChatCompletionMessageParam],
         model: str,
-        response_format: Optional[type[ResponseFormatT]] = None,
+        response_format: Optional[Union[type[ResponseFormatT], ResponseFormatJSONSchema, ResponseFormatJSONObject]] = None,
         n: Optional[int] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
@@ -189,6 +194,9 @@ class AsyncCompletions:
             call_params["stop"] = stop
         if seed is not None:
             call_params["seed"] = seed
+
+        if response_format is not None:
+            call_params["response_format"] = response_format
 
         # Add any additional kwargs
         call_params.update(kwargs)
