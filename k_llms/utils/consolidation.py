@@ -14,6 +14,8 @@ from .consensus_utils import (
     SYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
     ASYNC_GET_OPENAI_EMBEDDINGS_FROM_TEXT_TYPE,
     async_consensus_values,
+    recursive_list_alignments,
+    async_recursive_list_alignments,
 )
 from pydantic import BaseModel
 
@@ -88,6 +90,17 @@ def consolidate_chat_completions(
             if choice.message.content:
                 choice_contents.append(_safe_parse_content(choice.message.content))
 
+        # Align lists/objects across choices once before consensus
+        if len(choice_contents) >= 2:
+            aligned_seq, _ = recursive_list_alignments(
+                choice_contents,
+                consensus_settings.string_similarity_method,
+                get_openai_embeddings_from_text,
+                client,
+                consensus_settings.min_support_ratio,
+            )
+            choice_contents = [(d if isinstance(d, dict) else {}) for d in aligned_seq]
+
         consensus_content, likelihoods = consensus_values(
             choice_contents,
             consensus_settings,
@@ -142,6 +155,17 @@ def consolidate_chat_completions(
         for completion in completion_list:
             if completion.choices and completion.choices[0].message.content:
                 completion_contents.append(_safe_parse_content(completion.choices[0].message.content))
+
+        # Align lists/objects across completions once before consensus
+        if len(completion_contents) >= 2:
+            aligned_seq, _ = recursive_list_alignments(
+                completion_contents,
+                consensus_settings.string_similarity_method,
+                get_openai_embeddings_from_text,
+                client,
+                consensus_settings.min_support_ratio,
+            )
+            completion_contents = [(d if isinstance(d, dict) else {}) for d in aligned_seq]
 
         consensus_content, likelihoods = consensus_values(
             completion_contents,
@@ -225,6 +249,17 @@ async def async_consolidate_chat_completions(
             if choice.message.content:
                 async_choice_contents.append(_safe_parse_content(choice.message.content))
 
+        # Align lists/objects across choices once before consensus
+        if len(async_choice_contents) >= 2:
+            aligned_seq, _ = await async_recursive_list_alignments(
+                async_choice_contents,
+                consensus_settings.string_similarity_method,
+                async_get_openai_embeddings_from_text,
+                client,
+                consensus_settings.min_support_ratio,
+            )
+            async_choice_contents = [(d if isinstance(d, dict) else {}) for d in aligned_seq]
+
         consensus_content, likelihoods = await async_consensus_values(
             async_choice_contents,
             consensus_settings,
@@ -297,6 +332,17 @@ def consolidate_parsed_chat_completions(
     for choice in completion.choices:
         if choice.message.content:
             parsed_choice_contents.append(_safe_parse_content(choice.message.content))
+
+    # Align lists/objects across choices once before consensus
+    if len(parsed_choice_contents) >= 2:
+        aligned_seq, _ = recursive_list_alignments(
+            parsed_choice_contents,
+            consensus_settings.string_similarity_method,
+            get_openai_embeddings_from_text,
+            client,
+            consensus_settings.min_support_ratio,
+        )
+        parsed_choice_contents = [(d if isinstance(d, dict) else {}) for d in aligned_seq]
 
     consensus_content, likelihoods = consensus_values(
         parsed_choice_contents,
@@ -383,6 +429,17 @@ async def async_consolidate_parsed_chat_completions(
     for choice in completion.choices:
         if choice.message.content:
             async_parsed_choice_contents.append(_safe_parse_content(choice.message.content))
+
+    # Align lists/objects across choices once before consensus
+    if len(async_parsed_choice_contents) >= 2:
+        aligned_seq, _ = await async_recursive_list_alignments(
+            async_parsed_choice_contents,
+            consensus_settings.string_similarity_method,
+            async_get_openai_embeddings_from_text,
+            client,
+            consensus_settings.min_support_ratio,
+        )
+        async_parsed_choice_contents = [(d if isinstance(d, dict) else {}) for d in aligned_seq]
 
     consensus_content, likelihoods = await async_consensus_values(
         async_parsed_choice_contents,
