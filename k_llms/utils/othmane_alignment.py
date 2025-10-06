@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # alignment_engine_v3_recursive.py
 """
 Alignment Engine V3 - Recursive Alignment with Key Mappings
@@ -18,13 +19,32 @@ from .json_output_v3_recursion_1 import (
     CascadeConfig,
     select_best_keys,
 )
-from .json_output_v4 import ( 
+from .json_output_v4 import (  # type: ignore
     select_best_keys_v4,
 )
 
 # JSON-like nested type aliases (kept consistent with consensus_utils.py)
 JSONScalar = str | int | float | bool | None
 JSONLike = Dict[str, Any] | List[Any] | JSONScalar
+
+# Verbose/file logging (CLI-controlled)
+VERBOSE: bool = False
+LOG_FILE: Optional[str] = None
+
+def _log(msg: str) -> None:
+    should_print = VERBOSE
+    should_write = LOG_FILE is not None
+    if not (should_print or should_write):
+        return
+    if should_print:
+        print(msg)
+    if should_write and LOG_FILE:
+        try:
+            with open(LOG_FILE, "a", encoding="utf-8") as lf:
+                lf.write(msg + "\n")
+        except Exception:
+            # best-effort logging; ignore file errors
+            pass
 
 # --------------------- Helper Functions ---------------------
 
@@ -137,23 +157,14 @@ def _align_lists_by_key(
 
 # --------------------- Core Recursive Alignment ---------------------
 
-def recursive_align(
+def _compute_key_aligned_structure(
     values: Sequence[Any],
     original_paths: Sequence[Optional[str]],
     cascade_cfg: CascadeConfig,
 ) -> Tuple[Any, Dict[str, List[Optional[str]]]]:
     """
-    Recursively aligns a list of values (one from each source) and generates key mappings.
-
-    Args:
-        values: The list of values to align.
-        original_paths: The original JSON path for each value in its source file.
-        cascade_cfg: Configuration for the key selection cascade.
-
-    Returns:
-        A tuple containing:
-        - The single, merged/aligned value.
-        - A dictionary of key mappings.
+    Internal core for recursive alignment using key-based matching.
+    Keeps the original behavior and return types.
     """
     if not values or all(v is None for v in values):
         return None, {}
@@ -186,7 +197,7 @@ def recursive_align(
                 f"{p}.{key}" if p is not None else None for p in original_paths
             ]
 
-            aligned_value, sub_mapping = recursive_align(
+            aligned_value, sub_mapping = _compute_key_aligned_structure(
                 values_for_key, original_paths_for_key, cascade_cfg
             )
             aligned_dict[key] = aligned_value
@@ -222,6 +233,15 @@ def recursive_align(
                     > result.best_single.score_tuple
                     else result.best_single.path
                 )
+                # Prepare v3 metrics for logging
+                v3_metrics = result.best_composite if (
+                    result.best_composite and result.best_composite.score_tuple > result.best_single.score_tuple
+                ) else result.best_single
+                _log(
+                    f"[KEY-SELECT v3] path={list(key_paths_v3)} jaccard_min={round(v3_metrics.jaccard_min,6)} "
+                    f"coverage_min={round(v3_metrics.coverage_min,6)} uniqueness_min={round(v3_metrics.uniqueness_min,6)} "
+                    f"I_E={v3_metrics.I_E} union_size={v3_metrics.union_size}"
+                )
                 
                 # Then: try v4 fuzzy and prefer if it improves stability
                 try:
@@ -235,10 +255,28 @@ def recursive_align(
                     )
                     if comp.chosen == "fuzzy" and comp.fuzzy_best is not None:
                         key_paths = comp.fuzzy_best.path
+                        m = comp.fuzzy_best
+                        _log(
+                            f"[KEY-SELECT v4] chosen=fuzzy path={list(key_paths)} jaccard_min={round(m.jaccard_min,6)} "
+                            f"coverage_min={round(m.coverage_min,6)} uniqueness_min={round(m.uniqueness_min,6)} "
+                            f"I_E={m.I_E} union_size={m.union_size}"
+                        )
                     else:
                         key_paths = key_paths_v3
+                        m = v3_metrics
+                        _log(
+                            f"[KEY-SELECT v4] chosen=normal path={list(key_paths_v3)} jaccard_min={round(m.jaccard_min,6)} "
+                            f"coverage_min={round(m.coverage_min,6)} uniqueness_min={round(m.uniqueness_min,6)} "
+                            f"I_E={m.I_E} union_size={m.union_size}"
+                        )
                 except Exception:
                     key_paths = key_paths_v3
+                    m = v3_metrics
+                    _log(
+                        f"[KEY-SELECT v4] error => fallback to v3 path={list(key_paths_v3)} jaccard_min={round(m.jaccard_min,6)} "
+                        f"coverage_min={round(m.coverage_min,6)} uniqueness_min={round(m.uniqueness_min,6)} "
+                        f"I_E={m.I_E} union_size={m.union_size}"
+                    )
                     
             except ValueError:
                 # v3 failed; try v4 fuzzy as last resort
@@ -253,8 +291,15 @@ def recursive_align(
                     )
                     chosen = comp.fuzzy_best if comp.chosen == "fuzzy" else comp.normal_best
                     key_paths = chosen.path if chosen is not None else None
+                    if chosen is not None and key_paths is not None:
+                        _log(
+                            f"[KEY-SELECT v4-only] chosen={comp.chosen} path={list(key_paths)} jaccard_min={round(chosen.jaccard_min,6)} "
+                            f"coverage_min={round(chosen.coverage_min,6)} uniqueness_min={round(chosen.uniqueness_min,6)} "
+                            f"I_E={chosen.I_E} union_size={chosen.union_size}"
+                        )
                 except Exception:
                     key_paths = None # No suitable key found
+                    _log("[KEY-SELECT] no key found (v3 failed, v4 failed)")
 
             if key_paths:
                 aligned_rows, original_indices = _align_lists_by_key(lists, key_paths)
@@ -269,20 +314,18 @@ def recursive_align(
                         )
                         for j, p in enumerate(original_paths)
                     ]
-
-                    aligned_item, sub_mapping = recursive_align(
+                    aligned_item, sub_mapping = _compute_key_aligned_structure(
                         row, original_paths_for_row, cascade_cfg
                     )
                     aligned_list.append(aligned_item)
-                    
                     # Prepend the aligned list index to the mapping keys
                     for sub_key, paths in sub_mapping.items():
                         new_key = f"{i}.{sub_key}" if sub_key else str(i)
                         key_mappings[new_key] = paths
-
                 return aligned_list, key_mappings
 
         # Fallback: For lists of scalars or if key selection fails, zip them
+        _log("[ALIGN] Fallback zip alignment for lists (scalars or no key)")
         aligned_list = []
         max_len = max(len(lst) for lst in lists) if lists else 0
         for i in range(max_len):
@@ -292,7 +335,7 @@ def recursive_align(
                 for j, p in enumerate(original_paths)
             ]
             
-            aligned_item, sub_mapping = recursive_align(
+            aligned_item, sub_mapping = _compute_key_aligned_structure(
                 row, original_paths_for_row, cascade_cfg
             )
             aligned_list.append(aligned_item)
@@ -303,6 +346,90 @@ def recursive_align(
         return aligned_list, key_mappings
 
     return values, {} # Should not be reached
+
+
+def recursive_align(
+    values: Sequence[JSONLike],
+    string_similarity_method: str,
+    min_support_ratio: float = 0.5,
+    max_novelty_ratio: float = 0.25,
+    current_path: str = "",
+    reference_idx: Optional[int] = None,
+    min_uniqueness: Optional[float] = None,
+    min_coverage: Optional[float] = None,
+) -> tuple[Sequence[JSONLike], dict[str, list[str | None]]]:
+    """
+    Key-based recursive alignment with the same API as the similarity-based aligner.
+
+    Returns:
+      - per-source aligned outputs (same length/order as `values`)
+      - key mappings from the aligned structure to original per-source paths
+    """
+    # Edge cases
+    if not values:
+        return list(values), {}
+    if all(v is None for v in values):
+        return list(values), {current_path: [current_path for _ in values]}
+
+    non_nulls = [v for v in values if v is not None]
+    if not non_nulls:
+        return list(values), {}
+
+    # Configure the key-selection cascade
+    # - Map support->coverage by default
+    # - Allow explicit overrides via min_uniqueness/min_coverage when provided
+    eff_min_coverage = min_coverage if min_coverage is not None else min_support_ratio
+    eff_min_uniqueness = min_uniqueness if min_uniqueness is not None else 0.5
+    cascade_cfg = CascadeConfig(min_coverage=eff_min_coverage, min_uniqueness=eff_min_uniqueness)
+
+    # 1) Compute aligned structure and per-path mappings
+    original_paths: List[Optional[str]] = [current_path for _ in values]
+    aligned_data, raw_key_mappings = _compute_key_aligned_structure(values, original_paths, cascade_cfg)
+
+    # 2) Materialize per-source aligned outputs (relative to each provided value)
+    per_source_outputs: List[JSONLike] = []
+    for i, src_root in enumerate(values):
+        # _materialize_source_view expects a dict source root. Wrap lists in a dict
+        # so pathing like "0", "1" can still be addressed in a stable container.
+        materialized_root: Dict[str, Any]
+        if isinstance(src_root, dict):
+            materialized_root = src_root
+        elif isinstance(src_root, list):
+            materialized_root = {"items": src_root}
+            # Rewrite mappings to start from "items" when materializing a list root
+            if raw_key_mappings:
+                raw_key_mappings = { (f"items.{k}" if k else "items"): v for k, v in raw_key_mappings.items() }
+        else:
+            materialized_root = {}
+        per_source_outputs.append(
+            _materialize_source_view(
+                aligned_node=aligned_data,
+                key_mappings=raw_key_mappings,
+                source_idx=i,
+                current_path="",
+                source_root=materialized_root,
+            )
+        )
+
+    # 3) Prefix mapping keys and values with `current_path` (for API parity)
+    if current_path:
+        prefixed_mapping: Dict[str, List[Optional[str]]] = {}
+        for key, paths in raw_key_mappings.items():
+            # Prefix mapping dictionary keys
+            pref_key = f"{current_path}.{key}" if key else current_path
+            # Prefix individual source paths when present
+            pref_paths: List[Optional[str]] = []
+            for p in paths:
+                if p is None or p == "":
+                    pref_paths.append(current_path if current_path else None)
+                else:
+                    pref_paths.append(f"{current_path}.{p}" if current_path else p)
+            prefixed_mapping[pref_key] = pref_paths
+        key_mappings = prefixed_mapping
+    else:
+        key_mappings = raw_key_mappings
+
+    return per_source_outputs, key_mappings
 
 
 # --------------------- Main API and CLI ---------------------
@@ -333,11 +460,13 @@ def align_extractions_recursively(
         min_coverage=min_coverage, min_uniqueness=min_uniqueness
     )
     
-    # The initial original path for each extraction is the root ("")
-    initial_paths = [""] * len(extractions)
-    
-    aligned_data, key_mappings = recursive_align(
-        extractions, initial_paths, cascade_cfg
+    per_source_aligned, key_mappings = recursive_align(
+        values=extractions,
+        string_similarity_method="levenshtein",
+        min_support_ratio=cascade_cfg.min_coverage,
+        max_novelty_ratio=0.25,
+        current_path="",
+        reference_idx=None,
     )
 
     print("\n" + "=" * 70)
@@ -346,7 +475,7 @@ def align_extractions_recursively(
 
     return {
         "metadata": {"sources": source_names},
-        "aligned_data": aligned_data,
+        "per_source_aligned": per_source_aligned,
         "key_mappings": key_mappings,
     }
 
@@ -432,92 +561,7 @@ def _materialize_source_view(
     return deepcopy(aligned_node)
 
 
-def recursive_list_alignments(
-    values: Sequence[JSONLike],
-    string_similarity_method: str,
-    min_uniqueness: float = 0.5,
-    min_coverage: float = 0.9,
-    current_path: str = "",
-    reference_idx: Optional[int] = None,
-) -> Tuple[List[JSONLike], Dict[str, List[Optional[str]]]]:
-    """
-    Key-based recursive alignment with the same API as the list/dict aligner.
-
-    - Leverages the key-selection engine (`recursive_align`) to compute a single
-      aligned structure and path mappings.
-    - Then materializes one aligned view per source using those mappings.
-
-    Notes:
-    - `string_similarity_method`, `max_novelty_ratio`, and `reference_idx` are
-      accepted for API compatibility but are not used by the key-based engine.
-    - Returned key mappings are prefixed with `current_path` to mirror the API
-      contract used elsewhere.
-    """
-    # Edge cases
-    if not values:
-        return list(values), {}
-    if all(v is None for v in values):
-        return list(values), {current_path: [current_path for _ in values]}
-
-    non_nulls = [v for v in values if v is not None]
-    if not non_nulls:
-        return list(values), {}
-
-    # Configure the key-selection cascade. Map min_support_ratio -> min_coverage.
-    cascade_cfg = CascadeConfig(min_coverage=min_coverage, min_uniqueness=min_uniqueness)
-
-    # Original paths for each source (relative to each provided value root)
-    original_paths: List[Optional[str]] = ["" for _ in values]
-
-    # 1) Compute aligned structure and per-path mappings
-    aligned_data, raw_key_mappings = recursive_align(values, original_paths, cascade_cfg)
-
-    # 2) Materialize per-source aligned outputs (relative to each provided value)
-    per_source_outputs: List[JSONLike] = []
-    for i, src_root in enumerate(values):
-        # _materialize_source_view expects a dict source root. Wrap lists in a dict
-        # so pathing like "0", "1" can still be addressed in a stable container.
-        materialized_root: Dict[str, Any]
-        if isinstance(src_root, dict):
-            materialized_root = src_root
-        elif isinstance(src_root, list):
-            materialized_root = {"items": src_root}
-            # Rewrite mappings to start from "items" when materializing a list root
-            if raw_key_mappings:
-                raw_key_mappings = {
-                    (f"items.{k}" if k else "items"): v for k, v in raw_key_mappings.items()
-                }
-        else:
-            materialized_root = {}
-        per_source_outputs.append(
-            _materialize_source_view(
-                aligned_node=aligned_data,
-                key_mappings=raw_key_mappings,
-                source_idx=i,
-                current_path="",
-                source_root=materialized_root,
-            )
-        )
-
-    # 3) Prefix mapping keys and values with `current_path` (for API parity)
-    if current_path:
-        prefixed_mapping: Dict[str, List[Optional[str]]] = {}
-        for key, paths in raw_key_mappings.items():
-            # Prefix mapping dictionary keys
-            pref_key = f"{current_path}.{key}" if key else current_path
-            # Prefix individual source paths when present
-            pref_paths: List[Optional[str]] = []
-            for p in paths:
-                if p is None or p == "":
-                    pref_paths.append(current_path if current_path else None)
-                else:
-                    pref_paths.append(f"{current_path}.{p}" if current_path else p)
-            prefixed_mapping[pref_key] = pref_paths
-        key_mappings = prefixed_mapping
-    else:
-        key_mappings = raw_key_mappings
-
-    return per_source_outputs, key_mappings
+# unified into recursive_align with consensus-compatible signature
 
 
 def build_per_source_aligned_outputs(
@@ -566,6 +610,17 @@ def main():
         default=0.9,
         help="Minimum coverage for key selection (0.0-1.0).",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logs for key selection (v3 vs v4, chosen keys, metrics).",
+    )
+    parser.add_argument(
+        "--log-file",
+        type=str,
+        default=None,
+        help="Path to a log file to write verbose selection logs.",
+    )
     args = parser.parse_args()
 
     # Load extractions (expand directories to json_*.json files, sorted)
@@ -597,6 +652,11 @@ def main():
         print("No valid JSON files loaded. Exiting.")
         return
 
+    # Verbose flag
+    global VERBOSE, LOG_FILE
+    VERBOSE = bool(args.verbose)
+    LOG_FILE = args.log_file
+
     # Perform alignment to obtain structure and key mappings
     alignment_result = align_extractions_recursively(
         extractions,
@@ -605,12 +665,8 @@ def main():
         min_coverage=args.min_coverage,
     )
 
-    # Materialize per-source aligned JSONs
-    per_source_aligned = build_per_source_aligned_outputs(
-        alignment_result=alignment_result,
-        extractions=extractions,
-        source_names=source_names,
-    )
+    # Use per-source aligned outputs directly from alignment_result
+    per_source_aligned = alignment_result.get("per_source_aligned", [])
 
     # Derive output prefix from provided --output
     out_path = Path(args.output)
