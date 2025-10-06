@@ -12,7 +12,7 @@ from typing import Literal
 dotenv.load_dotenv(".env.local")
 
 
-folder_name: Literal["lellikelly", "oilandgas", "coppermines"] = "coppermines"
+folder_name: Literal["lellikelly", "oilandgas", "coppermines"] = "oilandgas"
 
 document_path = f"data/{folder_name}/document.pdf"
 json_schema_path = f"data/{folder_name}/schema.json"
@@ -61,7 +61,7 @@ try:
             
         ]+ messages_obj.messages, # type: ignore
         response_format=response_format,
-        n=2,
+        n=4,
         reasoning_effort="minimal"
     )
         
