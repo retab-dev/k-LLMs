@@ -190,7 +190,8 @@ def _compute_key_aligned_structure(
         for key in all_keys:
             values_for_key = [d.get(key) for d in dicts]
             original_paths_for_key = [
-                f"{p}.{key}" if p is not None else None for p in original_paths
+                (f"{p}.{key}" if p else key) if p is not None else None
+                for p in original_paths
             ]
 
             aligned_value, sub_mapping = _compute_key_aligned_structure(
@@ -304,8 +305,8 @@ def _compute_key_aligned_structure(
                 for i, row in enumerate(aligned_rows):
                     original_paths_for_row = [
                         (
-                            f"{p}.{original_indices[i][j]}"
-                            if p is not None and original_indices[i][j] is not None
+                            (f"{p}.{original_indices[i][j]}" if p else str(original_indices[i][j]))
+                            if (p is not None and original_indices[i][j] is not None)
                             else None
                         )
                         for j, p in enumerate(original_paths)
@@ -327,7 +328,9 @@ def _compute_key_aligned_structure(
         for i in range(max_len):
             row = [lst[i] if i < len(lst) else None for lst in lists]
             original_paths_for_row = [
-                f"{p}.{i}" if p is not None and i < len(values[j]) else None
+                (
+                    (f"{p}.{i}" if p else str(i)) if i < len(values[j]) else None
+                ) if p is not None else None
                 for j, p in enumerate(original_paths)
             ]
             
