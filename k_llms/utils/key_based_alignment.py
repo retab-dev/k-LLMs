@@ -1,26 +1,22 @@
 #!/usr/bin/env python3
-# alignment_engine_v3_recursive.py
 """
-Alignment Engine V3 - Recursive Alignment with Key Mappings
+Key-Based Alignment Engine
 
-Aligns all keys at all levels (scalars, dicts, and lists) and produces
-a `key_mappings` structure to trace aligned data back to its original source path.
+Recursively aligns JSON extractions using intelligent key selection.
+Produces aligned outputs with consistent structure across all sources and
+key mappings for traceability back to original source paths.
 """
 from __future__ import annotations
 
-import argparse
-import json
 from copy import deepcopy
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-# Uses the robust key selection logic from the provided script
-from .json_output_v3_recursion_1 import (
+from .key_selection import (
     CascadeConfig,
     select_best_keys,
 )
-from .json_output_v4 import (  # type: ignore
-    select_best_keys_v4,
+from .fuzzy_key_selection import (
+    select_best_keys_with_fuzzy_fallback,
 )
 
 # JSON-like nested type aliases (kept consistent with consensus_utils.py)
@@ -56,19 +52,19 @@ def _get_key_tuple(
     Returns None if any path cannot be resolved.
     """
     values = []
-    for p in paths:
-        parts = p.split(".")
-        cur = obj
-        ok = True
+    for path in paths:
+        parts = path.split(".")
+        current_value = obj
+        path_resolved = True
         for part in parts:
-            if isinstance(cur, dict) and part in cur:
-                cur = cur[part]
+            if isinstance(current_value, dict) and part in current_value:
+                current_value = current_value[part]
             else:
-                ok = False
+                path_resolved = False
                 break
-        if not ok or cur is None or isinstance(cur, (dict, list)):
+        if not path_resolved or current_value is None or isinstance(current_value, (dict, list)):
             return None
-        values.append(cur)
+        values.append(current_value)
     return tuple(values)
 
 
@@ -96,10 +92,10 @@ def _align_lists_by_key(
     #    And collect all unique key tuples across all lists.
     all_key_tuples = set()
     indexes = []
-    for lst in lists_to_align:
+    for source_list in lists_to_align:
         mapping: Dict[Tuple[Any, ...], int] = {}
-        if isinstance(lst, list):
-            for i, item in enumerate(lst):
+        if isinstance(source_list, list):
+            for i, item in enumerate(source_list):
                 if isinstance(item, dict):
                     key_tuple = _get_key_tuple(item, key_paths)
                     if key_tuple is not None and key_tuple not in mapping:
@@ -110,25 +106,25 @@ def _align_lists_by_key(
     # Establish an output order:
     # Prefer the order from the most complete source list, then append any remaining
     # keys in sorted order for determinism.
-    def _safe_len(x: Optional[List[Dict[str, Any]]]) -> int:
-        return len(x) if isinstance(x, list) else 0
+    def _safe_len(source_list: Optional[List[Dict[str, Any]]]) -> int:
+        return len(source_list) if isinstance(source_list, list) else 0
 
     if indexes:
-        best_src_idx = max(range(len(lists_to_align)), key=lambda i: _safe_len(lists_to_align[i]))
+        best_source_idx = max(range(len(lists_to_align)), key=lambda i: _safe_len(lists_to_align[i]))
     else:
-        best_src_idx = 0
+        best_source_idx = 0
 
-    best_lst = lists_to_align[best_src_idx] if best_src_idx < len(lists_to_align) else None
+    best_source_list = lists_to_align[best_source_idx] if best_source_idx < len(lists_to_align) else None
     ordered_keys: List[Tuple[Any, ...]] = []
     seen_keys: set = set()
 
-    if isinstance(best_lst, list):
-        for item in best_lst:
+    if isinstance(best_source_list, list):
+        for item in best_source_list:
             if isinstance(item, dict):
-                kt = _get_key_tuple(item, key_paths)
-                if kt is not None and kt not in seen_keys:
-                    ordered_keys.append(kt)
-                    seen_keys.add(kt)
+                key_tuple = _get_key_tuple(item, key_paths)
+                if key_tuple is not None and key_tuple not in seen_keys:
+                    ordered_keys.append(key_tuple)
+                    seen_keys.add(key_tuple)
 
     # Append any remaining keys (not present in best source order) in sorted order
     remaining_keys = sorted(all_key_tuples - seen_keys)
@@ -141,11 +137,11 @@ def _align_lists_by_key(
     for key_tuple in ordered_keys:
         row: List[Optional[Dict[str, Any]]] = []
         indices_row: List[Optional[int]] = []
-        for i, lst in enumerate(lists_to_align):
-            idx = indexes[i].get(key_tuple)
-            if idx is not None and isinstance(lst, list):
-                row.append(lst[idx])
-                indices_row.append(idx)
+        for source_idx, source_list in enumerate(lists_to_align):
+            original_idx = indexes[source_idx].get(key_tuple)
+            if original_idx is not None and isinstance(source_list, list):
+                row.append(source_list[original_idx])
+                indices_row.append(original_idx)
             else:
                 row.append(None)
                 indices_row.append(None)
@@ -222,7 +218,7 @@ def _compute_key_aligned_structure(
             # Use dummy extractions to find the best alignment key for the current lists
             dummy_extractions = [{"items": lst} for lst in lists]
             try:
-                # First: try v3 normal selection (with composite support)
+                # First: try standard selection (with composite support)
                 result = select_best_keys(
                     dummy_extractions, list_key="items", cascade_cfg=cascade_cfg
                 )
@@ -233,19 +229,19 @@ def _compute_key_aligned_structure(
                     > result.best_single.score_tuple
                     else result.best_single.path
                 )
-                # Prepare v3 metrics for logging
+                # Prepare standard-selection metrics for logging
                 v3_metrics = result.best_composite if (
                     result.best_composite and result.best_composite.score_tuple > result.best_single.score_tuple
                 ) else result.best_single
                 _log(
-                    f"[KEY-SELECT v3] path={list(key_paths_v3)} jaccard_min={round(v3_metrics.jaccard_min,6)} "
+                    f"[KEY-SELECT standard] path={list(key_paths_v3)} jaccard_min={round(v3_metrics.jaccard_min,6)} "
                     f"coverage_min={round(v3_metrics.coverage_min,6)} uniqueness_min={round(v3_metrics.uniqueness_min,6)} "
                     f"I_E={v3_metrics.I_E} union_size={v3_metrics.union_size}"
                 )
                 
-                # Then: try v4 fuzzy and prefer if it improves stability
+                # Then: try fuzzy and prefer if it improves stability
                 try:
-                    comp = select_best_keys_v4(
+                    comp = select_best_keys_with_fuzzy_fallback(
                         dummy_extractions,
                         cascade_cfg=cascade_cfg,
                         list_key="items",
@@ -257,7 +253,7 @@ def _compute_key_aligned_structure(
                         key_paths = comp.fuzzy_best.path
                         m = comp.fuzzy_best
                         _log(
-                            f"[KEY-SELECT v4] chosen=fuzzy path={list(key_paths)} jaccard_min={round(m.jaccard_min,6)} "
+                            f"[KEY-SELECT fuzzy] chosen=fuzzy path={list(key_paths)} jaccard_min={round(m.jaccard_min,6)} "
                             f"coverage_min={round(m.coverage_min,6)} uniqueness_min={round(m.uniqueness_min,6)} "
                             f"I_E={m.I_E} union_size={m.union_size}"
                         )
@@ -265,7 +261,7 @@ def _compute_key_aligned_structure(
                         key_paths = key_paths_v3
                         m = v3_metrics
                         _log(
-                            f"[KEY-SELECT v4] chosen=normal path={list(key_paths_v3)} jaccard_min={round(m.jaccard_min,6)} "
+                            f"[KEY-SELECT fuzzy] chosen=standard path={list(key_paths_v3)} jaccard_min={round(m.jaccard_min,6)} "
                             f"coverage_min={round(m.coverage_min,6)} uniqueness_min={round(m.uniqueness_min,6)} "
                             f"I_E={m.I_E} union_size={m.union_size}"
                         )
@@ -273,15 +269,15 @@ def _compute_key_aligned_structure(
                     key_paths = key_paths_v3
                     m = v3_metrics
                     _log(
-                        f"[KEY-SELECT v4] error => fallback to v3 path={list(key_paths_v3)} jaccard_min={round(m.jaccard_min,6)} "
+                        f"[KEY-SELECT fuzzy] error => fallback to standard path={list(key_paths_v3)} jaccard_min={round(m.jaccard_min,6)} "
                         f"coverage_min={round(m.coverage_min,6)} uniqueness_min={round(m.uniqueness_min,6)} "
                         f"I_E={m.I_E} union_size={m.union_size}"
                     )
                     
             except ValueError:
-                # v3 failed; try v4 fuzzy as last resort
+                # Standard failed; try fuzzy as last resort
                 try:
-                    comp = select_best_keys_v4(
+                    comp = select_best_keys_with_fuzzy_fallback(
                         dummy_extractions,
                         cascade_cfg=cascade_cfg,
                         list_key="items",
@@ -434,50 +430,6 @@ def recursive_align(
 
 # --------------------- Main API and CLI ---------------------
 
-def align_extractions_recursively(
-    extractions: List[Dict[str, Any]],
-    source_names: List[str],
-    min_uniqueness: float = 0.5,
-    min_coverage: float = 0.9,
-) -> Dict[str, Any]:
-    """
-    Top-level function to recursively align multiple extractions.
-
-    Args:
-        extractions: A list of JSON objects (as dicts) to align.
-        source_names: A list of names for the source files.
-        min_uniqueness: Minimum uniqueness for key selection in lists.
-        min_coverage: Minimum coverage for key selection in lists.
-
-    Returns:
-        A dictionary containing the aligned data and the key mappings.
-    """
-    print("=" * 70)
-    print("🔍 RECURSIVE ALIGNMENT ENGINE")
-    print("=" * 70 + "\n")
-
-    cascade_cfg = CascadeConfig(
-        min_coverage=min_coverage, min_uniqueness=min_uniqueness
-    )
-    
-    per_source_aligned, key_mappings = recursive_align(
-        values=extractions,
-        string_similarity_method="levenshtein",
-        min_support_ratio=cascade_cfg.min_coverage,
-        max_novelty_ratio=0.25,
-        current_path="",
-        reference_idx=None,
-    )
-
-    print("\n" + "=" * 70)
-    print("✅ ALIGNMENT COMPLETE")
-    print("=" * 70)
-
-    return {
-        "metadata": {"sources": source_names},
-        "per_source_aligned": per_source_aligned,
-        "key_mappings": key_mappings,
-    }
 
 
 def _get_value_by_path(obj: Any, path: Optional[str]) -> Any:
@@ -559,147 +511,3 @@ def _materialize_source_view(
 
     # If we have no mapping entry, just return the aligned leaf value
     return deepcopy(aligned_node)
-
-
-# unified into recursive_align with consensus-compatible signature
-
-
-def build_per_source_aligned_outputs(
-    alignment_result: Dict[str, Any],
-    extractions: List[Dict[str, Any]],
-    source_names: List[str],
-) -> List[Dict[str, Any]]:
-    """Create one aligned JSON per source using the alignment_result key mappings.
-
-    Returns a list of dicts in the same order as source_names/extractions.
-    """
-    aligned_data = alignment_result.get("aligned_data")
-    key_mappings: Dict[str, List[Optional[str]]] = alignment_result.get("key_mappings", {})
-
-    per_source_outputs: List[Dict[str, Any]] = []
-    for i, source_root in enumerate(extractions):
-        # Build a per-source projection of the aligned_data
-        projected = _materialize_source_view(
-            aligned_node=aligned_data,
-            key_mappings=key_mappings,
-            source_idx=i,
-            current_path="",
-            source_root=source_root,
-        )
-        per_source_outputs.append(projected)
-
-    return per_source_outputs
-
-
-def main():
-    """CLI for the recursive alignment engine."""
-    parser = argparse.ArgumentParser(
-        description="Recursively align multiple JSON extractions with key mapping."
-    )
-    parser.add_argument("inputs", nargs="+", help="JSON files or directories to align.")
-    parser.add_argument("--output", "-o", required=True, help="Output JSON file.")
-    parser.add_argument(
-        "--min-uniqueness",
-        type=float,
-        default=0.5,
-        help="Minimum uniqueness for key selection (0.0-1.0).",
-    )
-    parser.add_argument(
-        "--min-coverage",
-        type=float,
-        default=0.9,
-        help="Minimum coverage for key selection (0.0-1.0).",
-    )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Enable verbose logs for key selection (v3 vs v4, chosen keys, metrics).",
-    )
-    parser.add_argument(
-        "--log-file",
-        type=str,
-        default=None,
-        help="Path to a log file to write verbose selection logs.",
-    )
-    args = parser.parse_args()
-
-    # Load extractions (expand directories to json_*.json files, sorted)
-    filepaths: List[Path] = []
-    for p in args.inputs:
-        path = Path(p)
-        if path.is_dir():
-            matched = sorted(path.glob("json_*.json"), key=lambda fp: fp.name)
-            filepaths.extend(matched)
-        elif path.is_file():
-            filepaths.append(path)
-
-    if not filepaths:
-        print("⚠️  No input files found. If you passed a directory, ensure it contains files matching 'json_*.json'.")
-        return
-
-    print(f"📂 Loading {len(filepaths)} files...")
-    extractions = []
-    source_names = []
-    for fp in filepaths:
-        try:
-            with open(fp, "r", encoding="utf-8") as f:
-                extractions.append(json.load(f))
-                source_names.append(fp.stem)
-        except (json.JSONDecodeError, IOError) as e:
-            print(f"   ⚠️  Could not load or parse {fp}: {e}")
-
-    if not extractions:
-        print("No valid JSON files loaded. Exiting.")
-        return
-
-    # Verbose flag
-    global VERBOSE, LOG_FILE
-    VERBOSE = bool(args.verbose)
-    LOG_FILE = args.log_file
-
-    # Perform alignment to obtain structure and key mappings
-    alignment_result = align_extractions_recursively(
-        extractions,
-        source_names=source_names,
-        min_uniqueness=args.min_uniqueness,
-        min_coverage=args.min_coverage,
-    )
-
-    # Use per-source aligned outputs directly from alignment_result
-    per_source_aligned = alignment_result.get("per_source_aligned", [])
-
-    # Derive output prefix from provided --output
-    out_path = Path(args.output)
-    if out_path.suffix.lower() == ".json":
-        prefix = str(out_path.with_suffix(""))
-    else:
-        prefix = str(out_path)
-
-    # Save one file per source
-    saved_paths: List[str] = []
-    for src_name, data in zip(source_names, per_source_aligned):
-        target = f"{prefix}__{src_name}.json"
-        try:
-            with open(target, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            saved_paths.append(target)
-        except IOError as e:
-            print(f"\n🔥 Error saving per-source output '{target}': {e}")
-
-    if saved_paths:
-        print("\n💾 Saved per-source aligned outputs:")
-        for p in saved_paths:
-            print(f"   - {p}")
-
-    # Save key mappings as a separate JSON file next to the aligned outputs
-    mappings_target = f"{prefix}__key_mappings.json"
-    try:
-        with open(mappings_target, "w", encoding="utf-8") as f:
-            json.dump(alignment_result.get("key_mappings", {}), f, indent=2, ensure_ascii=False)
-        print(f"\n💾 Saved key mappings to: {mappings_target}")
-    except IOError as e:
-        print(f"\n🔥 Error saving key mappings file: {e}")
-
-
-if __name__ == "__main__":
-    main()
