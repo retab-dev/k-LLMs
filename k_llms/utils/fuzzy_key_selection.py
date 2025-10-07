@@ -1,40 +1,37 @@
 """
-json_output_v4 - Key selection with optional fuzzy fallback (numeric bucketing)
+Fuzzy Key Selection
 
-Goal:
-- Keep the existing v3 cascade unchanged for normal selection
-- If no key passes Stage 0 OR if fuzzy improves stability, use a fuzzy pass
-- Fuzzy pass buckets close scalar values (notably numerics) before metrics
+Extends the standard key selection with fuzzy matching fallback for improved
+stability when dealing with near-identical values (e.g., 1.29 vs 1.30).
 
-Notes:
-- Dates remain plain strings (no parsing)
-- Lists/dicts are NOT considered as keys (same as v3). Only scalar paths
-- This module depends on json_output_v3_recursion_1 for core types/metrics
+Features:
+- Buckets similar numeric values via rounding
+- Normalizes strings (lowercase, whitespace collapse)
+- Falls back to fuzzy matching if standard selection fails or if it improves stability
+
+Note: Only applies to scalar paths. Lists/dicts are not considered as keys.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+from pydantic import BaseModel
 
-import math
-
-# Reuse v3 components
-from .json_output_v3_recursion_1 import ( 
+from .key_selection import (
     CascadeConfig,
     KeyMetrics,
-    KeySelectionResult,
     discover_scalar_paths,
     values_for_path,
-    _evaluate_per_vals,  # internal, but OK for controlled reuse
-    select_best_keys as v3_select_best_keys,
+    _evaluate_per_vals,
+    select_best_keys as select_best_keys_standard,
 )
 
 
 def _normalize_string(value: str) -> str:
-    s = value.strip().lower()
-    # collapse whitespace
-    s = " ".join(s.split())
-    return s
+    """Normalize a string for fuzzy matching (lowercase, trim, collapse whitespace)."""
+    normalized = value.strip().lower()
+    # Collapse whitespace
+    normalized = " ".join(normalized.split())
+    return normalized
 
 
 def _canonicalize_scalar(value: Any, numeric_round_decimals: int) -> Any:
@@ -160,14 +157,22 @@ def _cascade_select_keys_fuzzy(
     return final_sorted[0]
 
 
-@dataclass(frozen=True)
-class SelectionComparison:
+class SelectionComparison(BaseModel):
+    """Comparison result between standard and fuzzy key selection runs.
+
+    - normal_best: best key metrics from standard selection (None if failed)
+    - fuzzy_best: best key metrics from fuzzy selection (None if disabled/failed)
+    - chosen: which strategy is chosen ("normal" | "fuzzy")
+    """
     normal_best: Optional[KeyMetrics]
     fuzzy_best: Optional[KeyMetrics]
     chosen: str  # "normal" | "fuzzy"
 
+    class Config:
+        frozen = True
 
-def select_best_keys_v4(
+
+def select_best_keys_with_fuzzy_fallback(
     extractions: List[Dict[str, Any]],
     cascade_cfg: CascadeConfig = CascadeConfig(),
     list_key: Optional[str] = None,
@@ -175,20 +180,29 @@ def select_best_keys_v4(
     enable_fuzzy_fallback: bool = True,
     prefer_fuzzy_if_better: bool = True,
 ) -> SelectionComparison:
-    """Run normal v3 selection first. If it fails or fuzzy is better, use fuzzy singles.
+    """Run standard selection, then optionally a fuzzy fallback, and compare.
 
-    Returns a SelectionComparison summarizing both and the chosen one.
+    Args:
+        extractions: list of extraction dicts
+        cascade_cfg: cascade configuration for selection
+        list_key: top-level list key to iterate records (optional)
+        fuzzy_numeric_round_decimals: rounding precision for numeric canonicalization
+        enable_fuzzy_fallback: if True, evaluate fuzzy singles when standard fails
+        prefer_fuzzy_if_better: if True, choose fuzzy if its stability improves
+
+    Returns:
+        SelectionComparison: summary of both strategies and which one is chosen
     """
     normal_best: Optional[KeyMetrics] = None
     try:
-        normal_result = v3_select_best_keys(
+        standard_result = select_best_keys_standard(
             extractions,
             cascade_cfg=cascade_cfg,
             list_key=list_key,
         )
-        normal_best = normal_result.best_single
+        normal_best = standard_result.best_single
     except ValueError:
-        normal_result = None
+        normal_best = None
 
     fuzzy_best: Optional[KeyMetrics] = None
     if enable_fuzzy_fallback:
@@ -217,61 +231,5 @@ def select_best_keys_v4(
             return SelectionComparison(normal_best=normal_best, fuzzy_best=fuzzy_best, chosen="fuzzy")
     return SelectionComparison(normal_best=normal_best, fuzzy_best=fuzzy_best, chosen="normal")
 
-
-def main() -> None:
-    """CLI: print selection comparison for quick manual checks."""
-    import argparse
-    import json
-    from pathlib import Path
-
-    ap = argparse.ArgumentParser(description="json_output_v4 - key selection with fuzzy fallback")
-    ap.add_argument("inputs", nargs="+", help="JSON files to analyze")
-    ap.add_argument("--list-key", help="Top-level list key to iterate records (optional)")
-    ap.add_argument("--min-coverage", type=float, default=0.0)
-    ap.add_argument("--min-uniqueness", type=float, default=0.0)
-    ap.add_argument("--fuzzy-decimals", type=int, default=2)
-    ap.add_argument("--no-fallback", action="store_true")
-    args = ap.parse_args()
-
-    files = [Path(p) for p in args.inputs]
-    extractions: List[Dict[str, Any]] = []
-    for fp in files:
-        with open(fp, "r", encoding="utf-8") as f:
-            extractions.append(json.load(f))
-
-    cfg = CascadeConfig(min_coverage=args.min_coverage, min_uniqueness=args.min_uniqueness)
-    comp = select_best_keys_v4(
-        extractions,
-        cascade_cfg=cfg,
-        list_key=args.list_key,
-        fuzzy_numeric_round_decimals=args.fuzzy_decimals,
-        enable_fuzzy_fallback=not args.no_fallback,
-        prefer_fuzzy_if_better=True,
-    )
-
-    def fmt(m: Optional[KeyMetrics]) -> Optional[Dict[str, Any]]:
-        if m is None:
-            return None
-        return {
-            "path": list(m.path),
-            "coverage_min": m.coverage_min,
-            "uniqueness_min": m.uniqueness_min,
-            "jaccard_min": m.jaccard_min,
-            "I_E": m.I_E,
-            "I_E_minus_1": m.I_E_minus_1,
-            "I_ge_2": m.I_ge_2,
-            "union_size": m.union_size,
-        }
-
-    out = {
-        "chosen": comp.chosen,
-        "normal_best": fmt(comp.normal_best),
-        "fuzzy_best": fmt(comp.fuzzy_best),
-    }
-    print(json.dumps(out, indent=2))
-
-
-if __name__ == "__main__":
-    main()
 
 
