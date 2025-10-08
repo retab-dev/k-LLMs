@@ -6,6 +6,7 @@ from collections import Counter, defaultdict
 from copy import deepcopy
 from itertools import zip_longest
 from math import isclose
+import math
 from threading import Lock
 from typing import Any, Awaitable, Callable, Literal, Optional
 
@@ -57,6 +58,15 @@ class ConsensusSettings(BaseModel):
     # Align objects with a minimum similarity threshold
     minimum_voters_threshold: float = 0.75
     min_support_ratio: float = 0.51  # At least 51% of the voters must agree
+    # Numeric consensus parameters (hybrid vote-or-mean)
+    # Clustering tolerances
+    rel_eps: float = 0.03  # relative closeness (e.g., 3%)
+    abs_eps: float = 1e-6  # absolute closeness to protect near zero
+    # Majority threshold for voting (slightly easier for small n if maj_loosen_k>0)
+    base_maj_thresh: float = 0.6
+    maj_loosen_k: float = 0.1
+    # Robust mean (used only when n >= 5)
+    trim_frac: float = 0.2
 
 
 T = dict | int | float | str | bool | None
@@ -1085,6 +1095,108 @@ def consensus_as_primitive(
         confidence = float(np.nanmean(similarities))
         return consensus_string, confidence
 
+    # Hybrid numeric consensus with None-aware confidence
+    if isinstance(first_val_type(), (int, float)) or all(isinstance(v, (int, float)) for v in non_none_values):
+        total = len(values)
+        none_count = sum(1 for v in values if v is None)
+        frac_none = none_count / total if total else 0.0
+
+        xs: list[float] = []
+        for v in values:
+            if isinstance(v, bool):
+                continue
+            if isinstance(v, (int, float)):
+                try:
+                    vf = float(v)
+                    if math.isfinite(vf):
+                        xs.append(vf)
+                except Exception:
+                    pass
+        if not xs:
+            return (None, parent_valid_frac)
+
+        xs.sort()
+        # clustering helpers
+        def _safe_scale(center: float, vec: list[float]) -> float:
+            eps = 1e-8
+            if not vec:
+                return eps
+            mean_abs = float(np.mean([abs(x) for x in vec]))
+            return max(abs(center), mean_abs, eps)
+
+        def _cluster_1d(xs_sorted: list[float], rel_eps: float, abs_eps: float) -> list[list[float]]:
+            if not xs_sorted:
+                return []
+            median_abs = float(np.median([abs(t) for t in xs_sorted]))
+            S = max(median_abs, 1.0)
+            def _is_close(a: float, b: float) -> bool:
+                denom = max(abs(a), abs(b), S)
+                rel_tol = consensus_settings.rel_eps * denom
+                return abs(b - a) <= max(consensus_settings.abs_eps, rel_tol)
+            clusters_local: list[list[float]] = []
+            current = [xs_sorted[0]]
+            for i in range(len(xs_sorted) - 1):
+                a, b = xs_sorted[i], xs_sorted[i + 1]
+                if _is_close(a, b):
+                    current.append(b)
+                else:
+                    clusters_local.append(current)
+                    current = [b]
+            clusters_local.append(current)
+            return clusters_local
+
+        def _trimmed_mean(xs_sorted: list[float], trim_frac: float) -> float:
+            n = len(xs_sorted)
+            if n == 0:
+                return float("nan")
+            if not (0.0 < consensus_settings.trim_frac < 0.5) or n < 5:
+                return float(np.mean(xs_sorted))
+            k = int(n * consensus_settings.trim_frac)
+            lo, hi = k, n - k
+            if hi <= lo:
+                return float(np.mean(xs_sorted))
+            return float(np.mean(xs_sorted[lo:hi]))
+
+        def _winsorized_std(xs_sorted: list[float], trim_frac: float) -> float:
+            n = len(xs_sorted)
+            if n <= 2 or not (0.0 < consensus_settings.trim_frac < 0.5) or n < 5:
+                return float(np.std(xs_sorted))
+            k = int(n * consensus_settings.trim_frac)
+            lo, hi = k, n - k - 1
+            lo_val = xs_sorted[lo]
+            hi_val = xs_sorted[hi]
+            win = [min(max(x, lo_val), hi_val) for x in xs_sorted]
+            return float(np.std(win))
+
+        def _adaptive_majority_threshold(n: int, base: float, k: float) -> float:
+            if n <= 1:
+                return 1.0
+            return max(0.5, base - k / math.sqrt(n))
+
+        clusters = _cluster_1d(xs, consensus_settings.rel_eps, consensus_settings.abs_eps)
+        max_cluster_size = max((len(c) for c in clusters), default=0)
+        if none_count > max_cluster_size:
+            return (None, round(frac_none, 5))
+
+        sizes = [len(c) for c in clusters]
+        max_idx = int(np.argmax(sizes))
+        max_cluster = clusters[max_idx]
+        p_major = len(max_cluster) / len(xs)
+        maj_thresh = _adaptive_majority_threshold(len(xs), consensus_settings.base_maj_thresh, consensus_settings.maj_loosen_k)
+
+        if p_major > maj_thresh:
+            rep = float(np.median(max_cluster))
+            conf = len(max_cluster) / total
+            return (rep, round(conf, 5))
+
+        mean_val = _trimmed_mean(xs, consensus_settings.trim_frac)
+        std_robust = _winsorized_std(xs, consensus_settings.trim_frac)
+        cv_global = std_robust / _safe_scale(mean_val, xs)
+        participation = 1.0 - frac_none
+        conf = (1.0 / (1.0 + cv_global)) * participation
+        return (float(mean_val), round(conf, 5))
+
+    # fallback: similarity medoid (strings or others)
     n = len(values)
     if n == 0:
         return (None, 0.0)
@@ -1095,15 +1207,10 @@ def consensus_as_primitive(
         for j in range(i + 1, n):
             sim = generic_similarity(values[i], values[j], consensus_settings.string_similarity_method, sync_get_openai_embeddings_from_text)
             sim_matrix[i, j] = sim_matrix[j, i] = sim
-        # Set the diagonal to NaN to avoid it being considered in the average
         sim_matrix[i, i] = np.nan
-    # Compute the average of the non-NaN values for each row
     avg_sims = np.nanmean(sim_matrix, axis=1)
-    # Get the index of the maximum average similarity
     best_idx = int(np.argmax(avg_sims))
-    # Get the best value
     best_value = values[best_idx]
-    # Get the confidence score
     confidence = parent_valid_frac * float(avg_sims[best_idx])
     return (best_value, round(confidence, 5))
 
