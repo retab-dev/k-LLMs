@@ -1127,10 +1127,8 @@ def consensus_as_primitive(
         def _cluster_1d(xs_sorted: list[float], rel_eps: float, abs_eps: float) -> list[list[float]]:
             if not xs_sorted:
                 return []
-            median_abs = float(np.median([abs(t) for t in xs_sorted]))
-            S = max(median_abs, 1.0)
             def _is_close(a: float, b: float) -> bool:
-                denom = max(abs(a), abs(b), S)
+                denom = max(abs(a), abs(b), 1.0)
                 rel_tol = consensus_settings.rel_eps * denom
                 return abs(b - a) <= max(consensus_settings.abs_eps, rel_tol)
             clusters_local: list[list[float]] = []
@@ -1145,56 +1143,81 @@ def consensus_as_primitive(
             clusters_local.append(current)
             return clusters_local
 
-        def _trimmed_mean(xs_sorted: list[float], trim_frac: float) -> float:
-            n = len(xs_sorted)
-            if n == 0:
-                return float("nan")
-            if not (0.0 < consensus_settings.trim_frac < 0.5) or n < 5:
-                return float(np.mean(xs_sorted))
-            k = int(n * consensus_settings.trim_frac)
-            lo, hi = k, n - k
-            if hi <= lo:
-                return float(np.mean(xs_sorted))
-            return float(np.mean(xs_sorted[lo:hi]))
+        def _is_close_absrel(a: float, b: float, rel_eps: float, abs_eps: float) -> bool:
+            denom = max(abs(a), abs(b), 1.0)
+            return abs(a - b) <= max(abs_eps, rel_eps * denom)
 
-        def _winsorized_std(xs_sorted: list[float], trim_frac: float) -> float:
-            n = len(xs_sorted)
-            if n <= 2 or not (0.0 < consensus_settings.trim_frac < 0.5) or n < 5:
-                return float(np.std(xs_sorted))
-            k = int(n * consensus_settings.trim_frac)
-            lo, hi = k, n - k - 1
-            lo_val = xs_sorted[lo]
-            hi_val = xs_sorted[hi]
-            win = [min(max(x, lo_val), hi_val) for x in xs_sorted]
-            return float(np.std(win))
+        def _is_close_signless(a: float, b: float, rel_eps: float, abs_eps: float) -> bool:
+            return _is_close_absrel(abs(a), abs(b), rel_eps, abs_eps)
 
-        def _adaptive_majority_threshold(n: int, base: float, k: float) -> float:
-            if n <= 1:
-                return 1.0
-            return max(0.5, base - k / math.sqrt(n))
+        def _is_close_power10(a: float, b: float, rel_eps: float, abs_eps: float, k_range: tuple[int, int] = (-6, 6)) -> bool:
+            if a == 0.0 or b == 0.0:
+                return _is_close_absrel(a, b, rel_eps, abs_eps)
+            for k in range(k_range[0], k_range[1] + 1):
+                scaled = b * (10.0 ** k)
+                if _is_close_absrel(a, scaled, rel_eps, abs_eps):
+                    return True
+            return False
 
         clusters = _cluster_1d(xs, consensus_settings.rel_eps, consensus_settings.abs_eps)
-        max_cluster_size = max((len(c) for c in clusters), default=0)
-        if none_count > max_cluster_size:
+        sizes_num = [len(c) for c in clusters]
+        max_size_num = max((len(c) for c in clusters), default=0)
+        sizes_all = sizes_num + ([none_count] if none_count > 0 else [])
+        max_size_all = max(sizes_all) if sizes_all else 0
+
+        if none_count > max_size_num:
             return (None, round(frac_none, 5))
 
-        sizes = [len(c) for c in clusters]
-        max_idx = int(np.argmax(sizes))
-        max_cluster = clusters[max_idx]
-        p_major = len(max_cluster) / len(xs)
-        maj_thresh = _adaptive_majority_threshold(len(xs), consensus_settings.base_maj_thresh, consensus_settings.maj_loosen_k)
-
-        if p_major > maj_thresh:
-            rep = float(np.median(max_cluster))
-            conf = len(max_cluster) / total
+        if max_size_all > total / 2:
+            if none_count > 0 and none_count == max_size_all:
+                return (None, round(none_count / total, 5))
+            max_idx = int(np.argmax(sizes_num))
+            max_cluster = clusters[max_idx]
+            rep = float(np.mean(max_cluster))
+            conf = max_size_all / total
             return (rep, round(conf, 5))
 
-        mean_val = _trimmed_mean(xs, consensus_settings.trim_frac)
-        std_robust = _winsorized_std(xs, consensus_settings.trim_frac)
-        cv_global = std_robust / _safe_scale(mean_val, xs)
-        participation = 1.0 - frac_none
-        conf = (1.0 / (1.0 + cv_global)) * participation
-        return (float(mean_val), round(conf, 5))
+        if sizes_all.count(max_size_all) == 1:
+            if none_count > 0 and none_count == max_size_all:
+                return (None, round(none_count / total, 5))
+            max_idx = int(np.argmax(sizes_num))
+            max_cluster = clusters[max_idx]
+            rep = float(np.mean(max_cluster))
+            conf = max_size_all / total
+            return (rep, round(conf, 5))
+
+        candidate_indices = [i for i, c in enumerate(clusters) if len(c) == max_size_all]
+        include_none_candidate = (none_count > 0 and none_count == max_size_all)
+        centers = [float(np.median(c)) if c else float('nan') for c in clusters]
+        spreads = [float(np.std(c)) if len(c) > 1 else 0.0 for c in clusters]
+        supports: list[tuple[str, int, int]] = []
+        for ci in candidate_indices:
+            support = len(clusters[ci])
+            c_center = centers[ci]
+            for oi, other in enumerate(clusters):
+                if oi == ci:
+                    continue
+                if len(other) < len(clusters[ci]):
+                    o_center = centers[oi]
+                    if (
+                        _is_close_absrel(c_center, o_center, consensus_settings.rel_eps, consensus_settings.abs_eps)
+                        or _is_close_signless(c_center, o_center, consensus_settings.rel_eps, consensus_settings.abs_eps)
+                        or _is_close_power10(c_center, o_center, consensus_settings.rel_eps, consensus_settings.abs_eps)
+                    ):
+                        support += len(other)
+            supports.append(("numeric", ci, support))
+        if include_none_candidate:
+            supports.append(("none", -1, none_count))
+        supports.sort(key=lambda t: (-t[2], 1 if t[0] != "numeric" else 0, spreads[t[1]] if t[1] >= 0 else float('inf'), -abs(centers[t[1]]) if t[1] >= 0 else 0.0))
+        best_kind, best_idx, best_support = supports[0]
+        TIE_CONF_PENALTY = 0.95
+        if best_kind == "none":
+            conf = (best_support / total) * TIE_CONF_PENALTY
+            return (None, round(conf, 5))
+        best_cluster = clusters[best_idx]
+        rep = float(np.mean(best_cluster))
+        conf = (best_support / total) * TIE_CONF_PENALTY
+        return (rep, round(conf, 5))
 
     # fallback: similarity medoid (strings or others)
     n = len(values)
