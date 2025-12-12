@@ -38,8 +38,8 @@ pricing = {"text-embedding-3-small": 0.020, "text-embedding-3-large": 0.13}
 IGNORED_KEY_PATTERNS = [
     # contains reasoning___
     r"reasoning___",
-    # contains quote___
-    r"quote___",
+    # contains source___
+    r"source___",
 ]
 
 logger = logging.getLogger(__name__)
@@ -1285,7 +1285,7 @@ def consensus_dict(
     result = {}
     confs = {}
 
-    special_field_prefix = ["reasoning___", "quote___"]
+    special_field_prefix = ["reasoning___", "source___"]
 
     for key in all_keys:
         sub_vals = [d.get(key, None) for d in dict_values]
@@ -1708,7 +1708,7 @@ async def async_consensus_dict(
     result = {}
     confs = {}
 
-    special_field_prefix = ["reasoning___", "quote___"]
+    special_field_prefix = ["reasoning___", "source___"]
 
     for key in all_keys:
         sub_vals = [d.get(key, None) for d in dict_values]
