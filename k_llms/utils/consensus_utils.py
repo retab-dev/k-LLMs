@@ -1035,7 +1035,7 @@ def string_consensus_llm(values: list[str], client: OpenAI) -> str:
         
     values_json_dumped = [json.dumps(v) for v in values]
     response = client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model="gpt-5-mini",
         messages=[
             {"role": "system", "content": system_prompt_string_consensus_llm},
             {"role": "user", "content": f"Input: {values_json_dumped}\nOutput:"},
@@ -1060,7 +1060,7 @@ async def async_string_consensus_llm(values: list[str], client: AsyncOpenAI) -> 
         
     values_json_dumped = [json.dumps(v) for v in values]
     response = await client.chat.completions.create(
-        model="gpt-4.1-mini",
+        model="gpt-5-mini",
         messages=[
             {"role": "system", "content": system_prompt_string_consensus_llm},
             {"role": "user", "content": f"Input: {values_json_dumped}\nOutput:"},
