@@ -226,7 +226,7 @@ pip install k_llms openai pydantic psutil python-dotenv
 - Python 3.8+ recommended
 
 ### Model Availability
-Tests use `gpt-4.1-nano` by default. Ensure your API key has access to this model.
+Tests use `gpt-5-nano` by default. Ensure your API key has access to this model.
 
 ## 🚨 Troubleshooting
 
@@ -246,7 +246,7 @@ echo $OPENAI_API_KEY
 
 **3. Model Access**
 ```
-Error: Model 'gpt-4.1-nano' not found
+Error: Model 'gpt-5-nano' not found
 # Update test files to use available model
 ```
 
