@@ -37,13 +37,13 @@ openai_client = OpenAI()
 
 # Make a single request (normal OpenAI behavior)
 response = openai_client.chat.completions.create(
-    model="gpt-5.2",
+    model="gpt-5.4",
     messages=[{"role": "user", "content": "Hello!"}]
 )
 
 # Make multiple requests with consensus
 consensus_response = kllms_client.chat.completions.create(
-    model="gpt-5.2",
+    model="gpt-5.4",
     messages=[{"role": "user", "content": "What is 2+2?"}],
     n=3  # Generates 3 completions and consolidates
 )
@@ -60,14 +60,14 @@ class UserInfo(BaseModel):
 
 # Single parse request
 result = openai_client.chat.completions.parse(
-    model="gpt-5.2",
+    model="gpt-5.4",
     messages=[{"role": "user", "content": "John is 30 years old"}],
     response_format=UserInfo
 )
 
 # Multiple parse requests with consensus
 result = kllms_client.chat.completions.parse(
-    model="gpt-5.2",
+    model="gpt-5.4",
     messages=[{"role": "user", "content": "John is 30 years old"}],
     response_format=UserInfo,
     n=3
@@ -90,7 +90,7 @@ async def main():
     openai_client = AsyncOpenAI()
     
     response = await kllms_client.chat.completions.create(
-        model="gpt-5.2",
+        model="gpt-5.4",
         messages=[{"role": "user", "content": "Hello!"}],
         n=3
     )
