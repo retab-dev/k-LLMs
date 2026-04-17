@@ -1210,13 +1210,12 @@ def consensus_as_primitive(
             supports.append(("none", -1, none_count))
         supports.sort(key=lambda t: (-t[2], 1 if t[0] != "numeric" else 0, spreads[t[1]] if t[1] >= 0 else float('inf'), -abs(centers[t[1]]) if t[1] >= 0 else 0.0))
         best_kind, best_idx, best_support = supports[0]
-        TIE_CONF_PENALTY = 0.95
         if best_kind == "none":
-            conf = (best_support / total) * TIE_CONF_PENALTY
+            conf = best_support / total
             return (None, round(conf, 5))
         best_cluster = clusters[best_idx]
         rep = float(np.mean(best_cluster))
-        conf = (best_support / total) * TIE_CONF_PENALTY
+        conf = best_support / total
         return (rep, round(conf, 5))
 
     # fallback: similarity medoid (strings or others)
